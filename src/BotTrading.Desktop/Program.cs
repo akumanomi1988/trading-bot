@@ -18,7 +18,7 @@ internal static class Program
         try
         {
             using var workstation = new Workstation();
-            Application.Run(new WorkstationForm(workstation));
+            System.Windows.Forms.Application.Run(new WorkstationForm(workstation));
         }
         catch (Exception exception)
         {
