@@ -321,5 +321,30 @@ Check("out-of-sample benchmark opens on test-period first bar only", () => {
     True(result.Equity[0].Date == data.Candles[245].Date);
     True(result.BenchmarkReturnPct < 0m, "The benchmark must not purchase at old in-sample prices.");
 });
+Check("data quality skips weekends and flags missing weekdays", () => {
+    var candles = new[] {
+        new Candle(new DateOnly(2026, 1, 2), 100, 100, 100, 100, 1), // Friday
+        new Candle(new DateOnly(2026, 1, 5), 100, 100, 100, 100, 0), // Monday, no weekday gap
+        new Candle(new DateOnly(2026, 1, 7), 100, 140, 100, 140, 1) // Wednesday, Tuesday missing
+    };
+    var report = new DataQualityService().Analyze(new MarketSeries("AA", "Test", candles));
+    True(report.CandidateMissingWeekdays == 1 && report.CalendarGapCount == 1);
+    True(report.ZeroVolumeBars == 1 && report.LargePriceMoveCount == 1);
+    True(report.LargestCalendarGaps[0].MissingWeekdays == 1);
+    Nearly(report.LargestPriceMoves[0].AbsoluteChangePct, 40m);
+});
+Check("data quality strictly excludes future bars after replay cutoff", () => {
+    var data = new MarketSeries("AA", "Test", new[] {
+        new Candle(new DateOnly(2026, 1, 5), 100, 100, 100, 100, 5),
+        new Candle(new DateOnly(2026, 1, 6), 100, 100, 100, 100, 5),
+        new Candle(new DateOnly(2026, 1, 12), 100, 200, 100, 200, 0)
+    });
+    var full = new DataQualityService().Analyze(data);
+    var historical = new DataQualityService().Analyze(data, new DateOnly(2026, 1, 6));
+    True(full.LargePriceMoveCount == 1 && full.CalendarGapCount == 1);
+    True(historical.LargePriceMoveCount == 0 && historical.CalendarGapCount == 0);
+    True(historical.ZeroVolumeBars == 0 && historical.CandleCount == 2);
+    Throws<ArgumentException>(() => new DataQualityService().Analyze(data, new DateOnly(2026, 1, 4)));
+});
 Console.WriteLine($"\nTotal: {pass} passed, {fail} failed");
 Environment.ExitCode = fail == 0 ? 0 : 1;

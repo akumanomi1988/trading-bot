@@ -108,6 +108,9 @@ public sealed class WorkstationForm : Form
             "app.info" => new { version = "0.1.0", mode = "offline-first", execution = "simulation-only", source = "WebView2 bridge" },
             "assets.list" => _app.ListSeries(),
             "assets.series" => _app.GetSeries(Str("symbol")),
+            "assets.quality" => await Task.Run(() => _app.AnalyzeQuality(Str("symbol"),
+                args.TryGetProperty("endDate", out var qualityDate) && qualityDate.ValueKind == JsonValueKind.String ?
+                    DateOnly.Parse(qualityDate.GetString()!) : null)),
             "assets.importCsv" => await ImportWithDialogAsync(Str("symbol")),
             "assets.download" => await _app.DownloadAsync(Str("symbol")),
             "patterns.find" => await Task.Run(() => _app.FindPatterns(Str("symbol"), Int("window"), Int("maxResults"),

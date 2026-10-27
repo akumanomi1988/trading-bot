@@ -57,6 +57,8 @@ public sealed class Workstation : IDisposable
     {
         lock (_marketSync) return _paper.Snapshot(_markets);
     }
+    public DataQualityReport AnalyzeQuality(string symbol, DateOnly? cutoff = null) =>
+        new DataQualityService().Analyze(GetSeries(symbol), cutoff);
     public ValidationReport ValidateOutOfSample(string symbol) => new RobustnessService().Validate(GetSeries(symbol));
     public WalkForwardReport ValidateWalkForward(string symbol) => new WalkForwardService().Validate(GetSeries(symbol));
 

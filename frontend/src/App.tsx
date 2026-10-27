@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Activity, ArrowDownRight, ArrowUpRight, BarChart3, ChevronDown, CircleAlert, Database, Download, FileUp, FlaskConical, GitCompareArrows, Layers3, Play, RefreshCw, Search, ShieldCheck, Wallet } from 'lucide-react';
-import { bridge, type AppInfo, type Asset, type BacktestResult, type Candle, type PaperSnapshot, type Pattern, type PatternSearch, type Series, type ValidationReport, type WalkForwardReport, type ReplaySnapshot } from './bridge';
+import { bridge, type AppInfo, type Asset, type BacktestResult, type Candle, type PaperSnapshot, type Pattern, type PatternSearch, type Series, type ValidationReport, type WalkForwardReport, type ReplaySnapshot, type DataQualityReport } from './bridge';
 import { buildPlot, buildTimePlot, normalized, sharedDomain, type ChartPoint } from './charts';
 
 type Tab = 'compare' | 'strategy' | 'paper';
@@ -92,6 +92,7 @@ export default function App() {
   const [paper, setPaper] = useState<PaperSnapshot | null>(null);
   const [replayAccount, setReplayAccount] = useState<ReplaySnapshot | null>(null);
   const [replayStartDate, setReplayStartDate] = useState('');
+  const [quality, setQuality] = useState<DataQualityReport | null>(null);
   const [qty, setQty] = useState(1);
 
   const refresh = useCallback(async () => {
@@ -121,6 +122,7 @@ export default function App() {
   const replayDefaultDate = a && a.candles.length >= 2
     ? a.candles[Math.min(Math.floor(a.candles.length / 2), a.candles.length - 2)].date : '';
   const cutoff = a ? a.candles[replayEnd ?? a.candles.length - 1]?.date : undefined;
+  useEffect(() => { setQuality(null); }, [selectedA, cutoff]);
   const visibleA = useMemo(() => a?.candles.filter(c => !cutoff || c.date <= cutoff).slice(-lookback) ?? [], [a, cutoff, lookback]);
   const visibleB = useMemo(() => b?.candles.filter(c => !cutoff || c.date <= cutoff).slice(-lookback) ?? [], [b, cutoff, lookback]);
   const aligned = useMemo(() => {
@@ -195,6 +197,7 @@ export default function App() {
 
         {tab === 'compare' && <>
           <div className="section-heading"><div><h2>Comparador dual</h2><p>Dos activos, mismo corte temporal y ventanas equivalentes</p></div><div className="segmented" role="group" aria-label="Ventana de sesiones">{[90,180,365].map(n => <button key={n} aria-pressed={lookback === n} className={lookback === n ? 'chosen' : ''} onClick={() => setLookback(n)}>{n}D</button>)}</div></div>
+          <section className="panel" aria-label="Diagnóstico del histórico"><div className="panel-header"><div><div className="section-eyebrow">HISTORICAL DATA INTEGRITY</div><h2>Diagnóstico de datos · {selectedA || 'Activo A'}</h2><p>Analiza huecos de calendario y movimientos anómalos sin consultar velas posteriores al corte temporal.</p></div><button className="btn secondary" disabled={busy || !a} onClick={() => task(() => bridge.call<DataQualityReport>('assets.quality', { symbol: selectedA, endDate: cutoff }), setQuality)}>Analizar histórico</button></div>{quality && quality.symbol === selectedA && (!cutoff || quality.last <= cutoff) && <><div className="kpi-grid"><Stat label="VELAS ANALIZADAS" value={String(quality.candleCount)}/><Stat label="DÍAS LABORABLES AUSENTES (POSIBLES)" value={String(quality.candidateMissingWeekdays)}/><Stat label="VELAS SIN VOLUMEN" value={String(quality.zeroVolumeBars)}/><Stat label="MOVIMIENTOS > 25%" value={String(quality.largePriceMoveCount)}/></div>{quality.largestPriceMoves.length > 0 && <div className="fills">{quality.largestPriceMoves.slice(0, 5).map(x => <div key={x.date}><span>{dateLabel(x.date)}</span><span>{number(x.previousClose)} → {number(x.close)}</span><strong>{number(x.absoluteChangePct)}%</strong></div>)}</div>}{quality.largestCalendarGaps.length > 0 && <p className="inline-warning">Hueco mayor: {quality.largestCalendarGaps[0].missingWeekdays} posibles días laborables sin velas ({dateLabel(quality.largestCalendarGaps[0].after)} – {dateLabel(quality.largestCalendarGaps[0].before)}).</p>}<p className="caution">Indicadores heurísticos: festivos, suspensiones y horarios bursátiles no están modelados. Los saltos también pueden deberse a splits/dividendos. No se corrigen ni se reconstruyen precios automáticamente.</p></>}</section>
           <div className="dual-cards"><AssetCard slot="A" selected={selectedA} onSelect={v => changeSelection('A', v)} symbols={assets} series={a} cutoff={cutoff} lookback={lookback}/><AssetCard slot="B" selected={selectedB} onSelect={v => changeSelection('B', v)} symbols={assets} series={b} cutoff={cutoff} lookback={lookback}/></div>
           <section className="panel overlay-panel"><div className="panel-header"><div><div className="section-eyebrow">NORMALIZED PERFORMANCE</div><h2>Rendimiento relativo</h2><p>Variación porcentual desde la primera fecha común; eje X en tiempo calendario real.</p></div><div className="legend"><span><i className="dot cyan"/>{selectedA || 'Activo A'}</span><span><i className="dot purple"/>{selectedB || 'Activo B'}</span></div></div><OverlayChart first={pointsA} second={pointsB}/><div className="chart-footer"><span>{dateLabel(aligned.a[0]?.date)}</span><span>{dateLabel(cutoff)}</span></div>{a && b && aligned.a.length===0 && <p className="inline-warning">Los instrumentos no tienen fechas de cotización comunes en la ventana actual.</p>}{sameAssets && <p className="inline-warning">Has seleccionado el mismo activo dos veces; para patrones entre instrumentos, elige otro en B.</p>}</section>
           <section className="panel replay-panel"><div className="replay-title"><Play size={17}/><div><h3>Replay histórico sincronizado</h3><p>Limita el gráfico y la búsqueda de patrones a información disponible hasta la fecha seleccionada.</p></div></div><div className="replay-control"><label htmlFor="replay">FECHA DE CORTE</label><input id="replay" type="range" min={0} max={Math.max(1,(a?.candles.length ?? 1)-1)} value={replayEnd ?? Math.max(0,(a?.candles.length ?? 1)-1)} disabled={!a || a.candles.length < 2} onChange={e => { setReplayEnd(Number(e.target.value)); setPatterns(null); setSelectedMatch(null); }} /><strong>{dateLabel(cutoff)}</strong><button className="btn flat" onClick={() => {setReplayEnd(null); setPatterns(null); setSelectedMatch(null);}} disabled={replayEnd === null}>Restablecer</button></div></section>

@@ -3,6 +3,10 @@ export type Asset = { symbol: string; name: string; count: number; start: string
 export type Series = { symbol: string; name: string; candles: Candle[] };
 export type Pattern = { symbol: string; start: string; end: string; correlation: number; distance: number };
 export type PatternSearch = { querySymbol: string; queryStart: string; queryEnd: string; window: number; matches: Pattern[] };
+export type DataQualityReport = { symbol: string; first: string; last: string; candleCount: number;
+  candidateMissingWeekdays: number; calendarGapCount: number; zeroVolumeBars: number;
+  largePriceMoveCount: number; largestCalendarGaps: { after: string; before: string; missingWeekdays: number }[];
+  largestPriceMoves: { date: string; previousClose: number; close: number; absoluteChangePct: number }[] };
 export type Fill = { date: string; side: 'BUY' | 'SELL'; quantity: number; price: number; fee: number; reason: string };
 export type BacktestResult = {
   symbol: string; fastPeriod: number; slowPeriod: number; initialCapital: number;
