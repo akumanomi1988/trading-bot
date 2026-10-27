@@ -134,6 +134,8 @@ public sealed class WorkstationForm : Form
                 args.TryGetProperty("endDate", out var endDca) && endDca.ValueKind == JsonValueKind.String ?
                     DateOnly.Parse(endDca.GetString()!) : null)),
             "strategy.validate" => await Task.Run(() => _app.ValidateOutOfSample(Str("symbol"))),
+            "strategy.costSensitivity" => await Task.Run(() => _app.AnalyzeCostSensitivity(
+                Str("symbol"), Int("fastPeriod"), Int("slowPeriod"))),
             "strategy.walkForward" => await Task.Run(() => _app.ValidateWalkForward(Str("symbol"))),
             "replay.snapshot" => _app.ReplaySnapshot(),
             "replay.clear" => await ClearReplayAsync(),

@@ -616,6 +616,29 @@ Check("invalid restore never changes the active in-memory or saved workspace", (
     }
     finally { if (Directory.Exists(dir)) Directory.Delete(dir, true); }
 });
+
+Check("cost sensitivity evaluates fixed SMA under six ordered costs", () => {
+    var input = Series("AA", 10,9,8,7,6,8,12,16,18,20,18,15,11,8,6,12,18,22);
+    var report = new CostSensitivityService().Analyze(input, 2, 4);
+    True(report.Scenarios.Count == 6 && report.Scenarios[0].FeeBps == 0m);
+    True(report.Scenarios[^1].FeeBps == 100m);
+    True(report.Scenarios.Select(x => x.FeeBps).SequenceEqual(new decimal[]{0,5,10,25,50,100}));
+    var standalone = new Backtester().Run(input, new("AA", 2, 4, 10_000m, 0m, 0m));
+    Nearly(report.Scenarios[0].FinalEquity, standalone.FinalEquity);
+    Nearly(report.ReturnRangePctPoints, report.BestReturnPct - report.WorstReturnPct);
+});
+Check("cost sensitivity benchmarks reflect fees on flat market", () => {
+    var report = new CostSensitivityService().Analyze(
+        Series("AA", Enumerable.Repeat(100m, 60).ToArray()), 3, 8);
+    True(report.Scenarios.All(x => x.RoundTrips == 0 && x.ReturnPct == 0m));
+    True(report.Scenarios[0].BenchmarkReturnPct == 0m);
+    True(report.Scenarios[^1].BenchmarkReturnPct < report.Scenarios[1].BenchmarkReturnPct);
+    True(report.Scenarios[^1].ExcessReturnPct > report.Scenarios[1].ExcessReturnPct);
+});
+Check("cost sensitivity rejects invalid crossover parameters", () => {
+    var input = Series("AA", Enumerable.Repeat(100m, 60).ToArray());
+    Throws<ArgumentException>(() => new CostSensitivityService().Analyze(input, 12, 3));
+});
 Check("DCA monthly contributions use first available monthly open", () => {
     var candles = new[] {
         new Candle(new DateOnly(2020, 1, 3), 10, 11, 9, 10, 100),

@@ -92,6 +92,9 @@ public sealed class Workstation : IDisposable
         return _backtester.Run(series, new(symbol.ToUpperInvariant(), fast, slow, capital));
     }
 
+    public CostSensitivityReport AnalyzeCostSensitivity(string symbol, int fast, int slow) =>
+        new CostSensitivityService().Analyze(GetSeries(symbol), fast, slow);
+
     public IReadOnlyList<BacktestResult> Optimize(string symbol) => _backtester.Optimize(GetSeries(symbol));
     public DcaReport SimulateDca(string symbol, decimal monthlyContribution, DateOnly? start = null, DateOnly? end = null) =>
         new DcaSimulator().Run(GetSeries(symbol), monthlyContribution, start, end);
