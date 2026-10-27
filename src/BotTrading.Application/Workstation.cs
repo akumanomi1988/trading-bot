@@ -13,6 +13,7 @@ public sealed class Workstation : IDisposable
     private readonly List<MarketSeries> _markets;
     private readonly PaperBroker _paper;
     private ReplaySession? _replay;
+    private IReadOnlyList<NewsEvent> _news = [];
 
     public Workstation(WorkspaceStore? store = null)
     {
@@ -21,6 +22,7 @@ public sealed class Workstation : IDisposable
         _markets = state.Series.ToList();
         _paper = new(state.Paper);
         _replay = state.Replay;
+        _news = state.News ?? [];
     }
 
     public IReadOnlyList<SeriesSummary> ListSeries()
@@ -65,6 +67,34 @@ public sealed class Workstation : IDisposable
     public ReplaySnapshot? ReplaySnapshot()
     {
         lock (_marketSync) return _replay is null ? null : PaperReplayEngine.Snapshot(_replay, GetSeries(_replay.Symbol));
+    }
+
+    public IReadOnlyList<NewsInsight> NewsSnapshot(string symbol, DateOnly? cutoff = null)
+    {
+        lock (_marketSync) return NewsResearch.Query(_news, symbol, cutoff);
+    }
+
+    public async Task<int> ImportNewsCsvAsync(string path)
+    {
+        var file = new FileInfo(path);
+        if (!file.Exists || file.Length > NewsResearch.MaxFileBytes)
+            throw new InvalidDataException("News CSV missing or larger than 1 MiB.");
+        await using var stream = File.OpenRead(path);
+        var imported = NewsResearch.Parse(stream);
+        await _writeLock.WaitAsync();
+        try
+        {
+            lock (_marketSync)
+            {
+                var next = _news.Concat(imported)
+                    .GroupBy(x => (x.PublishedAt, x.Symbol, x.Headline, x.Source))
+                    .Select(x => x.First()).OrderByDescending(x => x.PublishedAt).Take(NewsResearch.MaxItems).ToArray();
+                _store.Save(new(_markets.ToArray(), _paper.State, _replay, next));
+                _news = next;
+                return imported.Count;
+            }
+        }
+        finally { _writeLock.Release(); }
     }
 
     public Task<ReplaySnapshot> StartReplayAsync(string symbol, DateOnly startDate) =>
@@ -187,7 +217,7 @@ public sealed class Workstation : IDisposable
                         throw new InvalidOperationException("Imported data would rewrite the active replay history. Discard the replay first.");
                     PaperReplayEngine.ValidatePersisted(_replay, market);
                 }
-                _store.Save(new(next, _paper.State, _replay));
+                _store.Save(new(next, _paper.State, _replay, _news));
                 _markets.Clear();
                 _markets.AddRange(next);
                 return market.ToSummary();
@@ -210,7 +240,7 @@ public sealed class Workstation : IDisposable
 
     private void Save()
     {
-        lock (_marketSync) _store.Save(new(_markets.ToArray(), _paper.State, _replay));
+        lock (_marketSync) _store.Save(new(_markets.ToArray(), _paper.State, _replay, _news));
     }
     public void Dispose() { _feed.Dispose(); _writeLock.Dispose(); }
 }

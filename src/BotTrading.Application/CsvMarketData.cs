@@ -49,14 +49,14 @@ public static class CsvMarketData
         return new MarketSeries(symbol, name ?? symbol, bars);
     }
 
-    private static int CountOutsideQuotes(string value, char separator)
+    internal static int CountOutsideQuotes(string value, char separator)
     {
         bool quoted = false; int count = 0;
         foreach (var ch in value) { if (ch == '"') quoted = !quoted; else if (!quoted && ch == separator) count++; }
         return count;
     }
 
-    private static string[] SplitCsv(string value, char separator)
+    internal static string[] SplitCsv(string value, char separator)
     {
         var output = new List<string>(); var part = new StringBuilder();
         bool quoted = false;

@@ -47,7 +47,10 @@ public sealed class WorkspaceStore
             saved.Paper.Fills.Count > 5000 || saved.Paper.Fills.Any(x => x.Symbol is null || !unique.Contains(x.Symbol) ||
                 x.Side is not ("BUY" or "SELL") || x.Quantity <= 0 || x.Quantity > 1_000_000 || x.Price <= 0 || x.Fee < 0))
             throw new InvalidDataException("Invalid paper account state. No data was overwritten.");
-        return new(validated, saved.Paper, saved.Replay);
+        var savedNews = saved.News ?? [];
+        if (savedNews.Count > NewsResearch.MaxItems || savedNews.Any(x => !NewsResearch.IsValid(x)))
+            throw new InvalidDataException("Invalid news research state. No data was overwritten.");
+        return new(validated, saved.Paper, saved.Replay, savedNews);
     }
 
     public void Save(Workspace workspace)
@@ -66,7 +69,8 @@ public sealed class WorkspaceStore
     }
 }
 
-public sealed record Workspace(IReadOnlyList<MarketSeries> Series, PaperAccount Paper, ReplaySession? Replay = null);
+public sealed record Workspace(IReadOnlyList<MarketSeries> Series, PaperAccount Paper, ReplaySession? Replay = null,
+    IReadOnlyList<NewsEvent>? News = null);
 
 public sealed class PaperBroker
 {

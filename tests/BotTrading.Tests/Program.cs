@@ -346,5 +346,57 @@ Check("data quality strictly excludes future bars after replay cutoff", () => {
     True(historical.ZeroVolumeBars == 0 && historical.CandleCount == 2);
     Throws<ArgumentException>(() => new DataQualityService().Analyze(data, new DateOnly(2026, 1, 4)));
 });
+Check("news CSV retains attribution and quoted commas", () => {
+    const string csv = "publishedAt,symbol,headline,source\n" +
+        "2026-01-02T11:30:00Z,AA,\"Profit, strong growth\",Test Wire\n" +
+        "2026-01-05T19:30:00+01:00,GLOBAL,\"War, risk rises\",Example Source\n";
+    var items = NewsResearch.Parse(new MemoryStream(Encoding.UTF8.GetBytes(csv)));
+    True(items.Count == 2 && items[0].Headline == "Profit, strong growth" && items[0].Source == "Test Wire");
+    True(items[1].PublishedAt == new DateTimeOffset(2026, 1, 5, 18, 30, 0, TimeSpan.Zero));
+    var sentiment = NewsResearch.ToInsight(items[0]);
+    True(sentiment.SentimentScore > 0 && sentiment.SentimentLabel == "POSITIVE");
+});
+Check("news chronology excludes cutoff date and future publications", () => {
+    var items = new[] {
+        new NewsEvent(new DateTimeOffset(2026, 1, 2, 10, 0, 0, TimeSpan.Zero), "AA", "Profit", "Demo"),
+        new NewsEvent(new DateTimeOffset(2026, 1, 5, 9, 0, 0, TimeSpan.Zero), "GLOBAL", "War", "Demo"),
+        new NewsEvent(new DateTimeOffset(2026, 1, 6, 9, 0, 0, TimeSpan.Zero), "BB", "Recession", "Demo")
+    };
+    var monday = NewsResearch.Query(items, "AA", new DateOnly(2026, 1, 5));
+    True(monday.Count == 1 && monday[0].Headline == "Profit");
+    var tuesday = NewsResearch.Query(items, "AA", new DateOnly(2026, 1, 6));
+    True(tuesday.Count == 2 && tuesday[0].Symbol == "GLOBAL" && tuesday[0].SentimentScore < 0);
+    True(NewsResearch.Query(items, "BB", new DateOnly(2026, 1, 5)).Count == 0);
+});
+Check("news parser rejects timezone-naive dates and invalid article records", () => {
+    var raw = "publishedAt,symbol,headline,source\n2026-01-02T11:00:00,AA,Profit,Demo\n";
+    Throws<FormatException>(() => NewsResearch.Parse(new MemoryStream(Encoding.UTF8.GetBytes(raw))));
+    raw = "publishedAt,symbol,headline,source\n2026-01-02T11:00:00Z,AA,,Demo\n";
+    Throws<FormatException>(() => NewsResearch.Parse(new MemoryStream(Encoding.UTF8.GetBytes(raw))));
+});
+Check("news research persists and remains separate from paper workspace", () => {
+    string dir = Path.Combine(Path.GetTempPath(), "bottrading-news-" + Guid.NewGuid().ToString("N"));
+    Directory.CreateDirectory(dir);
+    try
+    {
+        var market = Series("AA", 100m, 101m, 102m);
+        var store = new WorkspaceStore(dir);
+        store.Save(new([market], new(10_000m, [], [])));
+        var csv = Path.Combine(dir, "news.csv");
+        File.WriteAllText(csv, "publishedAt,symbol,headline,source\n2020-01-01T07:00:00Z,AA,Profit,Demo\n");
+        using (var workstation = new Workstation(store))
+        {
+            True(workstation.ImportNewsCsvAsync(csv).GetAwaiter().GetResult() == 1);
+            True(workstation.NewsSnapshot("AA").Count == 1);
+            True(workstation.PaperSnapshot().Cash == 10_000m);
+        }
+        using (var workstation = new Workstation(store))
+        {
+            True(workstation.NewsSnapshot("AA").Count == 1);
+            True(workstation.NewsSnapshot("AA", new DateOnly(2020, 1, 1)).Count == 0);
+        }
+    }
+    finally { if (Directory.Exists(dir)) Directory.Delete(dir, true); }
+});
 Console.WriteLine($"\nTotal: {pass} passed, {fail} failed");
 Environment.ExitCode = fail == 0 ? 0 : 1;

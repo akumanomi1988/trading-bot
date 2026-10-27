@@ -34,6 +34,8 @@ export type ReplayOrder = { sequence: number; requestedAt: string; side: 'BUY' |
 export type ReplaySnapshot = { symbol: string; currentDate: string; finalDate: string; cash: number;
   quantity: number; averageCost: number; markPrice: number; equity: number; unrealizedPnL: number;
   atEnd: boolean; remainingSessions: number; orders: ReplayOrder[] };
+export type NewsInsight = { publishedAt: string; symbol: string; headline: string; source: string;
+  sentimentScore: number; sentimentLabel: 'POSITIVE' | 'NEGATIVE' | 'NEUTRAL' };
 export type AppInfo = { version: string; mode: string; execution: string; source: string };
 type WebViewPort = { postMessage(message: unknown): void; addEventListener(type: 'message', handler: (event: MessageEvent) => void): void };
 declare global { interface Window { chrome?: { webview?: WebViewPort } } }

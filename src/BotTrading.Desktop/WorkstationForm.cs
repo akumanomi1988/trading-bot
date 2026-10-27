@@ -113,6 +113,10 @@ public sealed class WorkstationForm : Form
                     DateOnly.Parse(qualityDate.GetString()!) : null)),
             "assets.importCsv" => await ImportWithDialogAsync(Str("symbol")),
             "assets.download" => await _app.DownloadAsync(Str("symbol")),
+            "news.importCsv" => await ImportNewsWithDialogAsync(),
+            "news.list" => _app.NewsSnapshot(Str("symbol"),
+                args.TryGetProperty("endDate", out var newsDate) && newsDate.ValueKind == JsonValueKind.String ?
+                    DateOnly.Parse(newsDate.GetString()!) : null),
             "patterns.find" => await Task.Run(() => _app.FindPatterns(Str("symbol"), Int("window"), Int("maxResults"),
                 args.TryGetProperty("endDate", out var endDate) && endDate.ValueKind == JsonValueKind.String ?
                     DateOnly.Parse(endDate.GetString()!) : null,
@@ -152,6 +156,20 @@ public sealed class WorkstationForm : Form
         if (picker.ShowDialog(this) == DialogResult.OK)
             return await _app.ImportCsvAsync(picker.FileName, symbol);
         return new { cancelled = true };
+    }
+
+    private async Task<object> ImportNewsWithDialogAsync()
+    {
+        using var picker = new OpenFileDialog
+        {
+            Title = "Import news research CSV",
+            Filter = "CSV files (*.csv)|*.csv",
+            CheckFileExists = true,
+            Multiselect = false
+        };
+        return picker.ShowDialog(this) == DialogResult.OK
+            ? new { cancelled = false, count = await _app.ImportNewsCsvAsync(picker.FileName) }
+            : new { cancelled = true, count = 0 };
     }
 
     private void Respond(string id, bool ok, object? result, object? error)
