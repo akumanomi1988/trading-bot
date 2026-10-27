@@ -6,7 +6,8 @@ public sealed record EquityPoint(DateOnly Date, decimal Equity);
 public sealed record Fill(DateOnly Date, string Side, int Quantity, decimal Price, decimal Fee, string Reason);
 public sealed record BacktestResult(string Symbol, int FastPeriod, int SlowPeriod, decimal InitialCapital,
     decimal FinalEquity, decimal ReturnPct, decimal MaxDrawdownPct, int RoundTrips, decimal WinRatePct,
-    IReadOnlyList<Fill> Fills, IReadOnlyList<EquityPoint> Equity);
+    IReadOnlyList<Fill> Fills, IReadOnlyList<EquityPoint> Equity,
+    decimal BenchmarkReturnPct = 0m, decimal ExcessReturnPct = 0m);
 
 public sealed class Backtester
 {
@@ -68,10 +69,24 @@ public sealed class Backtester
             equity.Add(new(bars[i].Date, decimal.Round(account, 2)));
         }
         var final = equity[^1].Equity;
+        // Fair passive benchmark: acquire whole shares at the first trading-day open,
+        // hold without rebalancing, liquidate at the final close. Apply identical
+        // slippage and fees. OOS tests start this benchmark at their own test date.
+        var benchmarkBuy = bars[startIndex].Open * (1m + request.SlippageBps / 10000m);
+        var benchmarkShares = (int)Math.Min(int.MaxValue,
+            decimal.Floor(request.InitialCapital / (benchmarkBuy * (1m + request.FeeBps / 10000m))));
+        var benchmarkBuyFee = benchmarkShares * benchmarkBuy * request.FeeBps / 10000m;
+        var benchmarkCash = request.InitialCapital - benchmarkShares * benchmarkBuy - benchmarkBuyFee;
+        var benchmarkSell = bars[^1].Close * (1m - request.SlippageBps / 10000m);
+        var benchmarkSellFee = benchmarkShares * benchmarkSell * request.FeeBps / 10000m;
+        var benchmarkFinal = benchmarkCash + benchmarkShares * benchmarkSell - benchmarkSellFee;
+        var benchmarkReturn = decimal.Round((benchmarkFinal / request.InitialCapital - 1m) * 100m, 2);
+        var strategyReturn = decimal.Round((final / request.InitialCapital - 1m) * 100m, 2);
         return new(series.Symbol, request.FastPeriod, request.SlowPeriod, request.InitialCapital,
-            final, decimal.Round((final / request.InitialCapital - 1) * 100, 2),
+            final, strategyReturn,
             decimal.Round(maxDrawdown, 2), completed,
-            completed == 0 ? 0 : decimal.Round((decimal)wins / completed * 100, 2), fills, equity);
+            completed == 0 ? 0 : decimal.Round((decimal)wins / completed * 100, 2), fills, equity,
+            benchmarkReturn, strategyReturn - benchmarkReturn);
 
         void Close(DateOnly date, decimal rawPrice, string reason)
         {

@@ -307,5 +307,19 @@ Check("active replay refuses reimport that rewrites already viewed history", () 
     }
     finally { if (Directory.Exists(dir)) Directory.Delete(dir, true); }
 });
+Check("buy-and-hold benchmark charges both entry and exit costs", () => {
+    var data = Series("AA", Enumerable.Repeat(100m, 40).ToArray());
+    var result = new Backtester().Run(data, new("AA", 3, 8));
+    True(result.RoundTrips == 0 && result.BenchmarkReturnPct < 0m);
+    Nearly(result.ReturnPct, 0m);
+    Nearly(result.ExcessReturnPct, -result.BenchmarkReturnPct);
+});
+Check("out-of-sample benchmark opens on test-period first bar only", () => {
+    var closes = Enumerable.Range(0, 350).Select(i => i < 245 ? 100m : 200m).ToArray();
+    var data = Series("AA", closes);
+    var result = new Backtester().Run(data, new("AA", 2, 5), data.Candles[245].Date);
+    True(result.Equity[0].Date == data.Candles[245].Date);
+    True(result.BenchmarkReturnPct < 0m, "The benchmark must not purchase at old in-sample prices.");
+});
 Console.WriteLine($"\nTotal: {pass} passed, {fail} failed");
 Environment.ExitCode = fail == 0 ? 0 : 1;
