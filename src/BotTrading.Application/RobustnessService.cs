@@ -28,52 +28,6 @@ public sealed class RobustnessService
     }
 }
 
-public sealed record WalkForwardWindow(int Number, DateOnly TrainStart, DateOnly TrainEnd,
-    DateOnly TestStart, DateOnly TestEnd, int FastPeriod, int SlowPeriod,
-    BacktestResult Training, BacktestResult OutOfSample);
-
-public sealed record WalkForwardReport(string Symbol, int FoldCount, decimal MedianTestReturnPct,
-    decimal PositiveFoldPct, decimal WorstTestDrawdownPct, IReadOnlyList<WalkForwardWindow> Windows);
-
-public sealed class WalkForwardService
-{
-    // Expanding training sets with consecutive, disjoint test intervals. Each test run starts
-    // flat and uses previous closes only for indicator warm-up, not model selection.
-    public WalkForwardReport Validate(MarketSeries series, int folds = 4)
-    {
-        if (folds is < 2 or > 8) throw new ArgumentOutOfRangeException(nameof(folds));
-        var candles = series.Candles;
-        if (candles.Count < 500) throw new ArgumentException("Walk-forward validation requires at least 500 daily candles.");
-        int initialTrain = Math.Max(250, candles.Count / 2);
-        int remaining = candles.Count - initialTrain;
-        if (remaining / folds < 30) throw new ArgumentException("Each test fold must have at least 30 observations.");
-        var backtester = new Backtester();
-        var windows = new List<WalkForwardWindow>(folds);
-        for (int fold = 0; fold < folds; fold++)
-        {
-            int testStart = initialTrain + remaining * fold / folds;
-            int testEnd = initialTrain + remaining * (fold + 1) / folds;
-            var training = new MarketSeries(series.Symbol, series.Name, candles.Take(testStart).ToArray());
-            var best = backtester.Optimize(training).FirstOrDefault()
-                ?? throw new InvalidOperationException("No valid parameter candidates for fold.");
-            var observed = new MarketSeries(series.Symbol, series.Name, candles.Take(testEnd).ToArray());
-            var test = backtester.Run(observed,
-                new BacktestRequest(series.Symbol, best.FastPeriod, best.SlowPeriod), candles[testStart].Date);
-            windows.Add(new(fold + 1, candles[0].Date, candles[testStart - 1].Date,
-                candles[testStart].Date, candles[testEnd - 1].Date,
-                best.FastPeriod, best.SlowPeriod, best, test));
-        }
-        var orderedReturns = windows.Select(x => x.OutOfSample.ReturnPct).Order().ToArray();
-        decimal median = orderedReturns.Length % 2 == 0
-            ? (orderedReturns[orderedReturns.Length / 2 - 1] + orderedReturns[orderedReturns.Length / 2]) / 2
-            : orderedReturns[orderedReturns.Length / 2];
-        return new(series.Symbol, windows.Count, decimal.Round(median, 2),
-            decimal.Round(100m * windows.Count(x => x.OutOfSample.ReturnPct > 0) / windows.Count, 2),
-            windows.Max(x => x.OutOfSample.MaxDrawdownPct), windows);
-    }
-}
-
-
 // Expanding training windows and strictly disjoint forward test segments.
 // Every parameter selection is restricted to observations before the fold's test start.
 public sealed record WalkForwardFold(int Number, DateOnly TrainingStart, DateOnly TrainingEnd,

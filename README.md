@@ -35,10 +35,10 @@ The shell maps bundled `frontend/dist` to a local virtual HTTPS hostname; busine
 - Render two synchronized asset charts, normalized-return overlay and selectable historical cutoff.
 - Search matching return sequences between the two selected instruments, or through the imported catalog, using Pearson correlation; exclude future samples and overlapping self-matches. Inspect an individual match with a normalized session-by-session shape comparison.
 - Backtest long-only SMA crossover with next-opening fills, whole-share sizing, commission and slippage, equity series, closed trades, win rate and maximum drawdown.
-- Explore a bounded grid of SMA parameters in-sample; perform a fixed 70/30 chronological out-of-sample holdout without selecting parameters on test data.
+- Explore a bounded grid of SMA parameters in-sample; perform both a fixed 70/30 chronological holdout and expanding-window four-fold walk-forward validation without selecting parameters on test data.
 - Place and persist local **simulated** buy/sell fills using the most recent imported close; no execution API, no exchange connection and no brokerage credentials. Until instrument currency metadata and FX are available, paper positions are limited to one distinct symbol at a time; balances are expressed in abstract monetary units (u.m.).
 
-**Known omissions:** advanced indicators, market calendars and split/dividend adjustment, multi-timeframe/tick feeds, portfolio-level backtesting, parameterized strategy DSL, walk-forward multiple folds, Monte Carlo/bootstrapping, broker-grade paper order types/execution logic, alerts, news/sentiment and optional local AI research, signed installer/updater, and Windows end-to-end acceptance. Read `docs/BACKLOG.md` before extending functionality.
+**Known omissions:** advanced indicators, market calendars and split/dividend adjustment, multi-timeframe/tick feeds, portfolio-level backtesting, parameterized strategy DSL, Monte Carlo/bootstrapping, broker-grade paper order types/execution logic, alerts, news/sentiment and optional local AI research, signed installer/updater, and Windows end-to-end acceptance. Read `docs/BACKLOG.md` before extending functionality.
 
 ## Windows development prerequisites
 
@@ -83,9 +83,10 @@ At creation, in the available Linux execution environment:
 
 - `frontend/npm test`: **11/11 PASS** (actual execution, chart math and IPC client).
 - TypeScript/TSX parser diagnostics: **0 syntax errors** (not a full React typecheck).
-- `.NET build / C# test console`: **NOT EXECUTED** (SDK unavailable; no claim of pass).
-- React production build: **NOT EXECUTED** (npm registry inaccessible and React deps not cached).
-- WebView2, live Stooq, native file dialog, publishing, packaging and manual UI: **NOT TESTED**.
+- `.NET Core + application assertions`: **27/27 PASS** on Windows CI at `8f27b389` (before walk-forward extension). Latest change awaits a new CI run.
+- React typecheck + production build: **PASS** on Windows CI at `8f27b389` (before walk-forward extension).
+- Native `dotnet publish` Windows: **PASS** on Windows CI at `8f27b389`; unsigned CI artifact only, no installer or UI smoke test.
+- WebView2 runtime, live Stooq, native file dialog and manual UI: **NOT TESTED**.
 
 ## Development decisions
 
