@@ -3,7 +3,8 @@ using BotTrading.Core;
 namespace BotTrading.Application;
 
 public sealed record ReplayOrder(long Sequence, DateOnly RequestedAt, string Side, int Quantity,
-    string Status, DateOnly? ExecutedAt = null, decimal? Price = null, decimal Fee = 0m, string? Reason = null);
+    string Status, DateOnly? ExecutedAt = null, decimal? Price = null, decimal Fee = 0m, string? Reason = null,
+    string? OrderType = null, decimal? TriggerPrice = null);
 
 // Independent from the quick paper account. A historical replay cannot silently mark its
 // account to the latest imported close without leaking information from the future.
@@ -32,16 +33,22 @@ public static class PaperReplayEngine
         return new(series.Symbol, series.Candles[index].Date, capital, capital, 0, 0m, []);
     }
 
-    public static ReplaySession Submit(ReplaySession state, MarketSeries series, string side, int quantity)
+    public static ReplaySession Submit(ReplaySession state, MarketSeries series, string side, int quantity,
+        string orderType = "MARKET", decimal? triggerPrice = null)
     {
         int index = ValidateAndFind(state, series);
         if (index >= series.Candles.Count - 1) throw new InvalidOperationException("Replay has reached the final candle.");
         if (quantity is < 1 or > 1_000_000) throw new ArgumentOutOfRangeException(nameof(quantity));
         side = side?.Trim().ToUpperInvariant() ?? throw new ArgumentNullException(nameof(side));
         if (side is not ("BUY" or "SELL")) throw new ArgumentException("Only BUY or SELL orders are supported.");
+        orderType = orderType?.Trim().ToUpperInvariant() ?? throw new ArgumentNullException(nameof(orderType));
+        if (orderType is not ("MARKET" or "LIMIT" or "STOP"))
+            throw new ArgumentException("Only MARKET, LIMIT and STOP order types are supported.", nameof(orderType));
+        if (orderType == "MARKET" ? triggerPrice is not null : triggerPrice is null or <= 0)
+            throw new ArgumentException("Conditional orders require a positive trigger price; market orders must not have one.", nameof(triggerPrice));
         if (state.Orders.Count >= 5000) throw new InvalidOperationException("Replay order history is full; start a new replay.");
         var sequence = state.Orders.Count == 0 ? 1 : state.Orders[^1].Sequence + 1;
-        var order = new ReplayOrder(sequence, state.CurrentDate, side, quantity, "PENDING");
+        var order = new ReplayOrder(sequence, state.CurrentDate, side, quantity, "PENDING", OrderType: orderType, TriggerPrice: triggerPrice);
         return state with { Orders = state.Orders.Append(order).ToArray() };
     }
 
@@ -67,7 +74,35 @@ public static class PaperReplayEngine
                     continue;
                 }
                 var buy = order.Side == "BUY";
-                var price = bar.Open * (buy ? 1m + SlippageBps / 10000m : 1m - SlippageBps / 10000m);
+                string type = order.OrderType ?? "MARKET";
+                // Orders are submitted after the previous completed daily candle.
+                // LIMIT remains queued until touched. STOP becomes a market execution when triggered.
+                decimal open = bar.Open;
+                decimal rawPrice;
+                if (type == "LIMIT")
+                {
+                    decimal limit = order.TriggerPrice!.Value;
+                    if (buy && bar.Low > limit || !buy && bar.High < limit)
+                    {
+                        changed.Add(order);
+                        continue;
+                    }
+                    rawPrice = buy ? Math.Min(open, limit) : Math.Max(open, limit);
+                }
+                else if (type == "STOP")
+                {
+                    decimal stop = order.TriggerPrice!.Value;
+                    if (buy && bar.High < stop || !buy && bar.Low > stop)
+                    {
+                        changed.Add(order);
+                        continue;
+                    }
+                    rawPrice = buy ? Math.Max(open, stop) : Math.Min(open, stop);
+                }
+                else rawPrice = open;
+                decimal price = rawPrice * (buy ? 1m + SlippageBps / 10000m : 1m - SlippageBps / 10000m);
+                if (type == "LIMIT")
+                    price = buy ? Math.Min(price, order.TriggerPrice!.Value) : Math.Max(price, order.TriggerPrice!.Value);
                 var fee = price * order.Quantity * FeeBps / 10000m;
                 decimal gross = price * order.Quantity;
                 string? reject = buy && gross + fee > cash ? "INSUFFICIENT_CASH"
@@ -117,6 +152,9 @@ public static class PaperReplayEngine
             (state.Quantity > 0 && state.AverageCost == 0) ||
             state.Orders.Count > 5000 || state.Orders.Any(x => x.Sequence < 1 ||
                 x.RequestedAt > state.CurrentDate || x.Side is not ("BUY" or "SELL") ||
+                x.OrderType is not (null or "MARKET" or "LIMIT" or "STOP") ||
+                ((x.OrderType is null or "MARKET") != (x.TriggerPrice is null)) ||
+                x.TriggerPrice is <= 0 ||
                 x.Status is not ("PENDING" or "FILLED" or "REJECTED") || x.Quantity is < 1 or > 1_000_000 ||
                 x.Price < 0 || x.Fee < 0 || (x.Status == "PENDING" && x.ExecutedAt is not null) ||
                 (x.Status != "PENDING" && (x.ExecutedAt is null || x.ExecutedAt > state.CurrentDate)) ||

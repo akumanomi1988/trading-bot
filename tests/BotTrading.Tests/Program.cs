@@ -398,5 +398,58 @@ Check("news research persists and remains separate from paper workspace", () => 
     }
     finally { if (Directory.Exists(dir)) Directory.Delete(dir, true); }
 });
+Check("conditional replay buy limit queues until low crosses trigger", () => {
+    var data = Series("AA", 100m, 110m, 90m, 85m);
+    var state = PaperReplayEngine.Submit(PaperReplayEngine.Start(data, data.Candles[0].Date), data, "BUY", 2, "LIMIT", 95m);
+    state = PaperReplayEngine.Advance(state, data);
+    True(state.Orders[0].Status == "PENDING" && state.Quantity == 0 && state.Cash == 10_000m);
+    state = PaperReplayEngine.Advance(state, data);
+    True(state.Orders[0].Status == "FILLED" && state.Quantity == 2);
+    True(state.Orders[0].Price <= 95m && state.Orders[0].Price >= 90m);
+});
+Check("conditional replay sell stop respects downward gap and deferred execution", () => {
+    var data = Series("AA", 100m, 101m, 90m, 95m);
+    var state = PaperReplayEngine.Submit(PaperReplayEngine.Start(data, data.Candles[0].Date), data, "BUY", 1);
+    state = PaperReplayEngine.Advance(state, data);
+    state = PaperReplayEngine.Submit(state, data, "SELL", 1, "STOP", 95m);
+    True(state.Quantity == 1 && state.Orders[1].Status == "PENDING");
+    state = PaperReplayEngine.Advance(state, data);
+    True(state.Quantity == 0 && state.Orders[1].Status == "FILLED");
+    True(state.Orders[1].Price < 95m);
+});
+Check("conditional replay buy stop and sell limit honor price bounds", () => {
+    var data = Series("AA", 100m, 110m, 130m, 150m);
+    var state = PaperReplayEngine.Submit(PaperReplayEngine.Start(data, data.Candles[0].Date), data, "BUY", 1, "STOP", 105m);
+    state = PaperReplayEngine.Advance(state, data);
+    True(state.Quantity == 1 && state.Orders[0].Status == "FILLED" && state.Orders[0].Price >= 105m);
+    state = PaperReplayEngine.Submit(state, data, "SELL", 1, "LIMIT", 125m);
+    state = PaperReplayEngine.Advance(state, data);
+    True(state.Quantity == 0 && state.Orders[1].Price >= 125m);
+});
+Check("conditional replay rejects invalid triggers and corrupted saved state", () => {
+    var data = Series("AA", 100m, 101m, 102m);
+    var state = PaperReplayEngine.Start(data, data.Candles[0].Date);
+    Throws<ArgumentException>(() => PaperReplayEngine.Submit(state, data, "BUY", 1, "LIMIT"));
+    Throws<ArgumentException>(() => PaperReplayEngine.Submit(state, data, "BUY", 1, "MARKET", 100m));
+    Throws<ArgumentException>(() => PaperReplayEngine.Submit(state, data, "BUY", 1, "STOP", -1m));
+    var invalid = state with { Orders = [new ReplayOrder(1, state.CurrentDate, "BUY", 1, "PENDING",
+        OrderType: "LIMIT", TriggerPrice: null)] };
+    Throws<InvalidDataException>(() => PaperReplayEngine.ValidatePersisted(invalid, data));
+});
+Check("conditional replay orders survive workspace reload", () => {
+    var dir = Path.Combine(Path.GetTempPath(), "bottrading-order-" + Guid.NewGuid().ToString("N"));
+    try {
+        var data = Series("AA", 100m, 102m, 103m);
+        var order = PaperReplayEngine.Submit(PaperReplayEngine.Start(data, data.Candles[0].Date),
+            data, "BUY", 3, "LIMIT", 95m);
+        var store = new WorkspaceStore(dir);
+        store.Save(new([data], new(10_000m, [], []), order));
+        var restored = store.Load().Replay ?? throw new Exception("Conditional replay not loaded.");
+        True(restored.Orders[0].OrderType == "LIMIT" && restored.Orders[0].TriggerPrice == 95m);
+        restored = PaperReplayEngine.Advance(restored, data);
+        True(restored.Orders[0].Status == "PENDING" && restored.Cash == 10_000m);
+    }
+    finally { if (Directory.Exists(dir)) Directory.Delete(dir, true); }
+});
 Console.WriteLine($"\nTotal: {pass} passed, {fail} failed");
 Environment.ExitCode = fail == 0 ? 0 : 1;

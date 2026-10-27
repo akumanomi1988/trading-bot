@@ -100,10 +100,11 @@ public sealed class Workstation : IDisposable
     public Task<ReplaySnapshot> StartReplayAsync(string symbol, DateOnly startDate) =>
         UpdateReplayAsync(_ => PaperReplayEngine.Start(GetSeries(symbol), startDate));
 
-    public Task<ReplaySnapshot> SubmitReplayOrderAsync(string side, int quantity) =>
+    public Task<ReplaySnapshot> SubmitReplayOrderAsync(string side, int quantity,
+        string orderType = "MARKET", decimal? triggerPrice = null) =>
         UpdateReplayAsync(previous => previous is null
             ? throw new InvalidOperationException("Start a market replay before submitting orders.")
-            : PaperReplayEngine.Submit(previous, GetSeries(previous.Symbol), side, quantity));
+            : PaperReplayEngine.Submit(previous, GetSeries(previous.Symbol), side, quantity, orderType, triggerPrice));
 
     public Task<ReplaySnapshot> AdvanceReplayAsync(int steps) =>
         UpdateReplayAsync(previous => previous is null

@@ -129,7 +129,11 @@ public sealed class WorkstationForm : Form
             "replay.snapshot" => _app.ReplaySnapshot(),
             "replay.clear" => await ClearReplayAsync(),
             "replay.start" => await _app.StartReplayAsync(Str("symbol"), DateOnly.Parse(Str("startDate"))),
-            "replay.submit" => await _app.SubmitReplayOrderAsync(Str("side"), Int("quantity")),
+            "replay.submit" => await _app.SubmitReplayOrderAsync(Str("side"), Int("quantity"),
+                args.TryGetProperty("orderType", out var orderType) && orderType.ValueKind == JsonValueKind.String ?
+                    orderType.GetString() ?? "MARKET" : "MARKET",
+                args.TryGetProperty("triggerPrice", out var trigger) && trigger.ValueKind == JsonValueKind.Number ?
+                    trigger.GetDecimal() : null),
             "replay.advance" => await _app.AdvanceReplayAsync(Int("steps")),
             "paper.snapshot" => _app.PaperSnapshot(),
             "paper.order" => await _app.PaperOrderAsync(Str("symbol"), Str("side"), Int("quantity")),
