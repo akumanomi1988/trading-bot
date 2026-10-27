@@ -83,9 +83,9 @@ At creation, in the available Linux execution environment:
 
 - `frontend/npm test`: **11/11 PASS** (actual execution, chart math and IPC client).
 - TypeScript/TSX parser diagnostics: **0 syntax errors** (not a full React typecheck).
-- `.NET Core + application assertions`: **31/31 PASS** on Windows CI at `993d51ab` (including four-fold walk-forward). Workspace-integrity hardening awaits CI.
-- React typecheck + production build: **PASS** on Windows CI at `993d51ab`.
-- Native `dotnet publish` Windows: **PASS** on Windows CI at `993d51ab`; unsigned CI artifact only, no installer or UI smoke test.
+- `.NET Core + application assertions`: **33/33 PASS** on Windows CI at `85ae5d00` (including four-fold walk-forward). Workspace-integrity hardening and four-fold walk-forward were validated on the Windows runner.
+- React typecheck + production build: **PASS** on Windows CI at `85ae5d00`.
+- Native `dotnet publish` Windows: **PASS** on Windows CI at `85ae5d00`; unsigned CI artifact only, no installer or UI smoke test.
 - WebView2 runtime, live Stooq, native file dialog and manual UI: **NOT TESTED**.
 
 ## Development decisions
