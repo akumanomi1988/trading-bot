@@ -103,10 +103,15 @@ public sealed class Workstation : IDisposable
         UpdateReplayAsync(_ => PaperReplayEngine.Start(GetSeries(symbol), startDate));
 
     public Task<ReplaySnapshot> SubmitReplayOrderAsync(string side, int quantity,
-        string orderType = "MARKET", decimal? triggerPrice = null) =>
+        string orderType = "MARKET", decimal? triggerPrice = null, DateOnly? goodThrough = null) =>
         UpdateReplayAsync(previous => previous is null
             ? throw new InvalidOperationException("Start a market replay before submitting orders.")
-            : PaperReplayEngine.Submit(previous, GetSeries(previous.Symbol), side, quantity, orderType, triggerPrice));
+            : PaperReplayEngine.Submit(previous, GetSeries(previous.Symbol), side, quantity, orderType, triggerPrice, goodThrough));
+
+    public Task<ReplaySnapshot> CancelReplayOrderAsync(long sequence) =>
+        UpdateReplayAsync(previous => previous is null
+            ? throw new InvalidOperationException("Start a replay before cancelling an order.")
+            : PaperReplayEngine.Cancel(previous, GetSeries(previous.Symbol), sequence));
 
     public Task<ReplaySnapshot> AdvanceReplayAsync(int steps) =>
         UpdateReplayAsync(previous => previous is null

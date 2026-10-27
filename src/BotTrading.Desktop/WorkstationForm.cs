@@ -140,7 +140,10 @@ public sealed class WorkstationForm : Form
                 args.TryGetProperty("orderType", out var orderType) && orderType.ValueKind == JsonValueKind.String ?
                     orderType.GetString() ?? "MARKET" : "MARKET",
                 args.TryGetProperty("triggerPrice", out var trigger) && trigger.ValueKind == JsonValueKind.Number ?
-                    trigger.GetDecimal() : null),
+                    trigger.GetDecimal() : null,
+                args.TryGetProperty("goodThrough", out var goodThrough) && goodThrough.ValueKind == JsonValueKind.String ?
+                    DateOnly.Parse(goodThrough.GetString()!) : null),
+            "replay.cancel" => await _app.CancelReplayOrderAsync(Int("sequence")),
             "replay.advance" => await _app.AdvanceReplayAsync(Int("steps")),
             "paper.snapshot" => _app.PaperSnapshot(),
             "paper.order" => await _app.PaperOrderAsync(Str("symbol"), Str("side"), Int("quantity")),

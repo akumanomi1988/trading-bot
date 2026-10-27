@@ -49,7 +49,8 @@
 - [ ] Versioned strategy experiments, additional signal types, risk constraints and reproducible comparison of runs.
 - [x] Descriptive daily equity risk metrics (annualized volatility, Sharpe, invested-session exposure, worst session) integrated into backtest DTO, Windows UI and deterministic core assertions; CI validation required before acceptance.
 - [ ] Statistical robustness beyond 4 folds: perturbation maps, transaction-cost sensitivity, synthetic regimes and outlier handling.
-- [ ] Portfolio-level multi-asset backtesting, orders cancellation/expiration and trade-level cash/position reconciliation.
+- [ ] Portfolio-level multi-asset backtesting and trade-level cash/position reconciliation.
+- [x] Historical replay pending-order cancellation and inclusive optional good-through expiry, persistent terminal statuses, native bridge, UI controls and regression tests; CI validation required before acceptance.
 - [ ] News: legal free RSS/API source onboarding with attribution and timestamp integrity, dedupe, historical timestamp alignment and optional strictly offline AI analysis.
 - [ ] Automated browser visual regression and real WebView2 automated screenshots across Windows DPI/screen sizes.
 - [ ] Signed/versioned Windows installer and in-place upgrade/recovery exercises; production operational guide.

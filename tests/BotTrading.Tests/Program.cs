@@ -497,6 +497,64 @@ Check("conditional replay orders survive workspace reload", () => {
     }
     finally { if (Directory.Exists(dir)) Directory.Delete(dir, true); }
 });
+
+Check("replay cancels a pending order without executing it", () => {
+    var data = Series("AA", 100m, 110m, 90m);
+    var state = PaperReplayEngine.Submit(PaperReplayEngine.Start(data, data.Candles[0].Date),
+        data, "BUY", 1, "LIMIT", 95m);
+    state = PaperReplayEngine.Cancel(state, data, 1);
+    True(state.Orders[0].Status == "CANCELLED" && state.Orders[0].Reason == "USER_CANCELLED");
+    True(state.Orders[0].ExecutedAt == data.Candles[0].Date);
+    Throws<InvalidOperationException>(() => PaperReplayEngine.Cancel(state, data, 1));
+    state = PaperReplayEngine.Advance(state, data, 2);
+    True(state.Quantity == 0 && state.Cash == 10_000m && state.Orders[0].Status == "CANCELLED");
+});
+Check("replay expires a pending order before subsequent price trigger", () => {
+    var data = Series("AA", 100m, 110m, 90m);
+    var start = data.Candles[0].Date;
+    var state = PaperReplayEngine.Submit(PaperReplayEngine.Start(data, start),
+        data, "BUY", 1, "LIMIT", 95m, start.AddDays(1));
+    state = PaperReplayEngine.Advance(state, data);
+    True(state.Orders[0].Status == "PENDING");
+    state = PaperReplayEngine.Advance(state, data);
+    True(state.Orders[0].Status == "EXPIRED" && state.Orders[0].ExecutedAt == data.Candles[2].Date);
+    True(state.Quantity == 0 && state.Cash == 10_000m);
+});
+Check("replay allows expiry-date fill and rejects earlier good-through", () => {
+    var data = Series("AA", 100m, 95m, 80m);
+    var start = data.Candles[0].Date;
+    Throws<ArgumentException>(() => PaperReplayEngine.Submit(PaperReplayEngine.Start(data, start),
+        data, "BUY", 1, "LIMIT", 96m, start));
+    var state = PaperReplayEngine.Submit(PaperReplayEngine.Start(data, start),
+        data, "BUY", 1, "LIMIT", 96m, start.AddDays(1));
+    state = PaperReplayEngine.Advance(state, data);
+    True(state.Orders[0].Status == "FILLED" && state.Quantity == 1);
+});
+Check("replay terminal statuses and expiry survive workspace reload", () => {
+    var dir = Path.Combine(Path.GetTempPath(), "bt-expiry-" + Guid.NewGuid().ToString("N"));
+    try {
+        var data = Series("AA", 100m, 110m, 90m);
+        var start = data.Candles[0].Date;
+        var state = PaperReplayEngine.Submit(PaperReplayEngine.Start(data, start),
+            data, "BUY", 1, "LIMIT", 95m, start.AddDays(1));
+        state = PaperReplayEngine.Submit(state, data, "BUY", 1, "STOP", 150m);
+        state = PaperReplayEngine.Cancel(state, data, 2);
+        state = PaperReplayEngine.Advance(state, data, 2);
+        var store = new WorkspaceStore(dir);
+        store.Save(new([data], new(10_000m, [], []), state));
+        var saved = store.Load().Replay ?? throw new Exception("Replay missing");
+        True(saved.Orders[0].Status == "EXPIRED" && saved.Orders[0].GoodThrough == start.AddDays(1));
+        True(saved.Orders[1].Status == "CANCELLED" && saved.Cash == 10_000m);
+    }
+    finally { if (Directory.Exists(dir)) Directory.Delete(dir, true); }
+});
+Check("replay rejects forged expired state missing good-through date", () => {
+    var data = Series("AA", 100m, 110m, 90m);
+    var state = PaperReplayEngine.Start(data, data.Candles[0].Date);
+    var bad = state with { Orders = [new ReplayOrder(1, state.CurrentDate, "BUY", 1,
+        "EXPIRED", ExecutedAt: state.CurrentDate, OrderType: "MARKET")] };
+    Throws<InvalidDataException>(() => PaperReplayEngine.ValidatePersisted(bad, data));
+});
 Check("DCA monthly contributions use first available monthly open", () => {
     var candles = new[] {
         new Candle(new DateOnly(2020, 1, 3), 10, 11, 9, 10, 100),

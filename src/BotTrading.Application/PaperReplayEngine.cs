@@ -4,7 +4,7 @@ namespace BotTrading.Application;
 
 public sealed record ReplayOrder(long Sequence, DateOnly RequestedAt, string Side, int Quantity,
     string Status, DateOnly? ExecutedAt = null, decimal? Price = null, decimal Fee = 0m, string? Reason = null,
-    string? OrderType = null, decimal? TriggerPrice = null);
+    string? OrderType = null, decimal? TriggerPrice = null, DateOnly? GoodThrough = null);
 
 // Independent from the quick paper account. A historical replay cannot silently mark its
 // account to the latest imported close without leaking information from the future.
@@ -34,7 +34,7 @@ public static class PaperReplayEngine
     }
 
     public static ReplaySession Submit(ReplaySession state, MarketSeries series, string side, int quantity,
-        string orderType = "MARKET", decimal? triggerPrice = null)
+        string orderType = "MARKET", decimal? triggerPrice = null, DateOnly? goodThrough = null)
     {
         int index = ValidateAndFind(state, series);
         if (index >= series.Candles.Count - 1) throw new InvalidOperationException("Replay has reached the final candle.");
@@ -46,10 +46,25 @@ public static class PaperReplayEngine
             throw new ArgumentException("Only MARKET, LIMIT and STOP order types are supported.", nameof(orderType));
         if (orderType == "MARKET" ? triggerPrice is not null : triggerPrice is null or <= 0)
             throw new ArgumentException("Conditional orders require a positive trigger price; market orders must not have one.", nameof(triggerPrice));
+        if (goodThrough.HasValue && goodThrough.Value <= state.CurrentDate)
+            throw new ArgumentException("Good-through date must be later than the submission date.", nameof(goodThrough));
         if (state.Orders.Count >= 5000) throw new InvalidOperationException("Replay order history is full; start a new replay.");
         var sequence = state.Orders.Count == 0 ? 1 : state.Orders[^1].Sequence + 1;
-        var order = new ReplayOrder(sequence, state.CurrentDate, side, quantity, "PENDING", OrderType: orderType, TriggerPrice: triggerPrice);
+        var order = new ReplayOrder(sequence, state.CurrentDate, side, quantity, "PENDING", OrderType: orderType, TriggerPrice: triggerPrice, GoodThrough: goodThrough);
         return state with { Orders = state.Orders.Append(order).ToArray() };
+    }
+
+    public static ReplaySession Cancel(ReplaySession state, MarketSeries series, long sequence)
+    {
+        _ = ValidateAndFind(state, series);
+        if (sequence < 1) throw new ArgumentOutOfRangeException(nameof(sequence));
+        var order = state.Orders.FirstOrDefault(x => x.Sequence == sequence)
+            ?? throw new KeyNotFoundException("Replay order not found.");
+        if (order.Status != "PENDING")
+            throw new InvalidOperationException("Only pending orders can be cancelled.");
+        return state with { Orders = state.Orders.Select(x => x.Sequence == sequence
+            ? x with { Status = "CANCELLED", ExecutedAt = state.CurrentDate, Reason = "USER_CANCELLED" }
+            : x).ToArray() };
     }
 
     public static ReplaySession Advance(ReplaySession state, MarketSeries series, int steps = 1)
@@ -71,6 +86,13 @@ public static class PaperReplayEngine
                 if (order.Status != "PENDING" || order.RequestedAt >= bar.Date)
                 {
                     changed.Add(order);
+                    continue;
+                }
+                // The good-through date is inclusive. Expiry is recorded when the first
+                // subsequent observed daily candle occurs; missing sessions are never invented.
+                if (order.GoodThrough.HasValue && bar.Date > order.GoodThrough.Value)
+                {
+                    changed.Add(order with { Status = "EXPIRED", ExecutedAt = bar.Date, Reason = "GOOD_THROUGH_ELAPSED" });
                     continue;
                 }
                 var buy = order.Side == "BUY";
@@ -155,9 +177,13 @@ public static class PaperReplayEngine
                 x.OrderType is not (null or "MARKET" or "LIMIT" or "STOP") ||
                 ((x.OrderType is null or "MARKET") != (x.TriggerPrice is null)) ||
                 x.TriggerPrice is <= 0 ||
-                x.Status is not ("PENDING" or "FILLED" or "REJECTED") || x.Quantity is < 1 or > 1_000_000 ||
+                x.Status is not ("PENDING" or "FILLED" or "REJECTED" or "CANCELLED" or "EXPIRED") ||
+                (x.GoodThrough.HasValue && x.GoodThrough.Value <= x.RequestedAt) ||
+                (x.Status == "PENDING" && x.GoodThrough.HasValue && state.CurrentDate > x.GoodThrough.Value) ||
+                (x.Status == "EXPIRED" && (!x.GoodThrough.HasValue || x.ExecutedAt <= x.GoodThrough.Value)) || x.Quantity is < 1 or > 1_000_000 ||
                 x.Price < 0 || x.Fee < 0 || (x.Status == "PENDING" && x.ExecutedAt is not null) ||
-                (x.Status != "PENDING" && (x.ExecutedAt is null || x.ExecutedAt > state.CurrentDate)) ||
+                (x.Status != "PENDING" && (x.ExecutedAt is null || x.ExecutedAt > state.CurrentDate ||
+                    x.ExecutedAt < x.RequestedAt)) || (x.Status != "FILLED" && x.Fee != 0m) ||
                 (x.Status == "FILLED" && (x.Price is null || x.Price <= 0)) ||
                 (x.Status != "FILLED" && x.Price is not null)))
             throw new InvalidDataException("Invalid persisted replay session.");

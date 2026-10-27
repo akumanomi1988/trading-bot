@@ -32,7 +32,7 @@ export type WalkForwardReport = {
     testReturnPct: number; testMaxDrawdownPct: number; testRoundTrips: number }[];
 };
 export type ReplayOrder = { sequence: number; requestedAt: string; side: 'BUY' | 'SELL'; quantity: number;
-  status: 'PENDING' | 'FILLED' | 'REJECTED'; orderType?: 'MARKET' | 'LIMIT' | 'STOP' | null; triggerPrice?: number | null; executedAt?: string | null; price?: number | null; fee: number; reason?: string | null };
+  status: 'PENDING' | 'FILLED' | 'REJECTED' | 'CANCELLED' | 'EXPIRED'; orderType?: 'MARKET' | 'LIMIT' | 'STOP' | null; triggerPrice?: number | null; goodThrough?: string | null; executedAt?: string | null; price?: number | null; fee: number; reason?: string | null };
 export type ReplaySnapshot = { symbol: string; currentDate: string; finalDate: string; cash: number;
   quantity: number; averageCost: number; markPrice: number; equity: number; unrealizedPnL: number;
   atEnd: boolean; remainingSessions: number; orders: ReplayOrder[] };
