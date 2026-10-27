@@ -192,10 +192,10 @@ export default function App() {
       <div className="brand"><div className="brand-mark"><Activity size={22} strokeWidth={2.8}/></div><div><strong>BOT<span>TRADING</span></strong><small>QUANT WORKSTATION</small></div></div>
       <div className="nav-label">WORKSPACE</div>
       <nav aria-label="Navegación principal">
-        <button className={tab === 'compare' ? 'nav-item active' : 'nav-item'} onClick={() => setTab('compare')}><GitCompareArrows size={19}/> Comparador de activos</button>
-        <button className={tab === 'strategy' ? 'nav-item active' : 'nav-item'} onClick={() => setTab('strategy')}><FlaskConical size={19}/> Strategy Lab</button>
-        <button className={tab === 'paper' ? 'nav-item active' : 'nav-item'} onClick={() => setTab('paper')}><Wallet size={19}/> Paper Trading</button>
-        <button className={tab === 'news' ? 'nav-item active' : 'nav-item'} onClick={() => setTab('news')}><Newspaper size={19}/> Noticias y sentimiento</button>
+        <button title="Comparador de activos" className={tab === 'compare' ? 'nav-item active' : 'nav-item'} onClick={() => setTab('compare')}><GitCompareArrows size={19}/> Comparador de activos</button>
+        <button title="Laboratorio de estrategias" className={tab === 'strategy' ? 'nav-item active' : 'nav-item'} onClick={() => setTab('strategy')}><FlaskConical size={19}/> Strategy Lab</button>
+        <button title="Paper Trading" className={tab === 'paper' ? 'nav-item active' : 'nav-item'} onClick={() => setTab('paper')}><Wallet size={19}/> Paper Trading</button>
+        <button title="Noticias y sentimiento" className={tab === 'news' ? 'nav-item active' : 'nav-item'} onClick={() => setTab('news')}><Newspaper size={19}/> Noticias y sentimiento</button>
       </nav>
       <div className="side-spacer" />
       <div className="sidebar-note"><ShieldCheck size={17}/><span>Entorno de simulación<br/><strong>Sin órdenes reales</strong></span></div>

@@ -34,11 +34,13 @@ The shell maps bundled `frontend/dist` to a local virtual HTTPS hostname; busine
 - Maintain up to 25 instruments locally (100,000 candles each); replace instrument history by reimport, preserving paper positions.
 - Render two synchronized asset charts, normalized-return overlay and selectable historical cutoff.
 - Search matching return sequences between the two selected instruments, or through the imported catalog, using Pearson correlation; exclude future samples and overlapping self-matches. Inspect an individual match with a normalized session-by-session shape comparison.
-- Backtest long-only SMA crossover with next-opening fills, whole-share sizing, commission and slippage, equity series, closed trades, win rate and maximum drawdown.
+- Backtest long-only SMA crossover with next-opening fills, whole-share sizing, commission and slippage, equity series, closed trades, win rate and maximum drawdown. Compare strategy returns with a fee-adjusted buy-and-hold benchmark over the same interval.
 - Explore a bounded grid of SMA parameters in-sample; perform both a fixed 70/30 chronological holdout and expanding-window four-fold walk-forward validation without selecting parameters on test data.
-- Place and persist local **simulated** buy/sell fills using the most recent imported close. Separately, a historical paper-replay session supports pending next-open orders, FILLED/REJECTED states, date-by-date marks and restart recovery; no execution API, no exchange connection and no brokerage credentials. Until instrument currency metadata and FX are available, paper positions are limited to one distinct symbol at a time; balances are expressed in abstract monetary units (u.m.).
+- Place and persist local **simulated** buy/sell fills using the most recent imported close. Separately, a historical paper-replay session supports queued MARKET/LIMIT/STOP orders with daily OHLC execution assumptions, FILLED/REJECTED states, date-by-date marks and restart recovery; no execution API, no exchange connection and no brokerage credentials. Until instrument currency metadata and FX are available, paper positions are limited to one distinct symbol at a time; balances are expressed in abstract monetary units (u.m.).
 
-**Known omissions:** advanced indicators, market calendars and split/dividend adjustment, multi-timeframe/tick feeds, portfolio-level backtesting, parameterized strategy DSL, Monte Carlo/bootstrapping, broker-grade paper order types/execution logic, alerts, news/sentiment and optional local AI research, signed installer/updater, and Windows end-to-end acceptance. Read `docs/BACKLOG.md` before extending functionality.
+Data integrity reports flag candidate missing weekdays, zero-volume bars and unusually large closing moves; alerts are heuristic and do not correct market holidays or corporate actions. The News workspace imports attributed timestamped CSV headlines for local English/Spanish lexical sentiment, with conservative historical cutoffs; this is not a predictive ML model.
+
+**Known omissions:** advanced indicators, market calendars and split/dividend adjustment, multi-timeframe/tick feeds, portfolio-level backtesting, parameterized strategy DSL, Monte Carlo/bootstrapping, broker-grade paper order types/execution logic, alerts, external licensed news ingestion and optional local AI research, signed installer/updater, and Windows end-to-end acceptance. Read `docs/BACKLOG.md` before extending functionality.
 
 ## Windows development prerequisites
 
@@ -79,14 +81,10 @@ Prices must be positive; volume may be zero or omitted; each date must be unique
 
 ## Verification status
 
-At creation, in the available Linux execution environment:
-
-- `frontend/npm test`: **11/11 PASS** (actual execution, chart math and IPC client).
-- TypeScript/TSX parser diagnostics: **0 syntax errors** (not a full React typecheck).
-- `.NET Core + application assertions`: **31/31 PASS** on Windows CI at `993d51ab` (including four-fold walk-forward). Workspace-integrity hardening awaits CI.
-- React typecheck + production build: **PASS** on Windows CI at `993d51ab`.
-- Native `dotnet publish` Windows: **PASS** on Windows CI at `993d51ab`; unsigned CI artifact only, no installer or UI smoke test.
-- WebView2 runtime, live Stooq, native file dialog and manual UI: **NOT TESTED**.
+- **Windows CI** (`dev`): source tests **53/53 C#** and **11/11 TypeScript** PASS at commit `5a59fe33`; React typecheck, Vite production build and native `dotnet publish` win-x64 PASS. [CI evidence](https://github.com/akumanomi1988/trading-bot/actions/runs/40467016898).
+- The CI artifact is an **unsigned build**, not a validated installer or a successfully observed WebView2 session. Artifacts are retained for seven days.
+- Real WebView2 interactions, provider downloads, native dialog, visual and accessibility tests, clean-machine packaging and upgrade behavior: **NOT ACCEPTED**.
+- Documentation and manual test protocols: `docs/BACKLOG.md` and `docs/ACCEPTANCE.md`. **No full phase is accepted as COMPLETE.**
 
 ## Development decisions
 
