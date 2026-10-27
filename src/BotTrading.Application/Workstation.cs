@@ -55,6 +55,8 @@ public sealed class Workstation : IDisposable
     }
 
     public IReadOnlyList<BacktestResult> Optimize(string symbol) => _backtester.Optimize(GetSeries(symbol));
+    public DcaReport SimulateDca(string symbol, decimal monthlyContribution, DateOnly? start = null, DateOnly? end = null) =>
+        new DcaSimulator().Run(GetSeries(symbol), monthlyContribution, start, end);
     public PaperView PaperSnapshot()
     {
         lock (_marketSync) return _paper.Snapshot(_markets);

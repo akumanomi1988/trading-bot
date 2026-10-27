@@ -34,6 +34,11 @@ export type ReplayOrder = { sequence: number; requestedAt: string; side: 'BUY' |
 export type ReplaySnapshot = { symbol: string; currentDate: string; finalDate: string; cash: number;
   quantity: number; averageCost: number; markPrice: number; equity: number; unrealizedPnL: number;
   atEnd: boolean; remainingSessions: number; orders: ReplayOrder[] };
+export type DcaPoint = { month: string; executionDate?: string | null; contributions: number;
+  cash: number; shares: number; markPrice: number; equity: number; returnPct: number };
+export type DcaReport = { symbol: string; monthlyContribution: number; startMonth: string; endMonth: string;
+  monthCount: number; contributions: number; finalEquity: number; gain: number; returnPct: number;
+  shares: number; points: DcaPoint[] };
 export type NewsInsight = { publishedAt: string; symbol: string; headline: string; source: string;
   sentimentScore: number; sentimentLabel: 'POSITIVE' | 'NEGATIVE' | 'NEUTRAL' };
 export type AppInfo = { version: string; mode: string; execution: string; source: string };

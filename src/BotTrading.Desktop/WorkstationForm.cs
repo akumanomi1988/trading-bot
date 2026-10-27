@@ -124,6 +124,13 @@ public sealed class WorkstationForm : Form
                     target.GetString() : null)),
             "backtest.run" => _app.Backtest(Str("symbol"), Int("fastPeriod"), Int("slowPeriod")),
             "backtest.optimize" => await Task.Run(() => _app.Optimize(Str("symbol"))),
+            "simulation.dca" => await Task.Run(() => _app.SimulateDca(Str("symbol"),
+                args.TryGetProperty("monthlyContribution", out var contribution) && contribution.ValueKind == JsonValueKind.Number ?
+                    contribution.GetDecimal() : 100m,
+                args.TryGetProperty("startDate", out var startDate) && startDate.ValueKind == JsonValueKind.String ?
+                    DateOnly.Parse(startDate.GetString()!) : null,
+                args.TryGetProperty("endDate", out var endDca) && endDca.ValueKind == JsonValueKind.String ?
+                    DateOnly.Parse(endDca.GetString()!) : null)),
             "strategy.validate" => await Task.Run(() => _app.ValidateOutOfSample(Str("symbol"))),
             "strategy.walkForward" => await Task.Run(() => _app.ValidateWalkForward(Str("symbol"))),
             "replay.snapshot" => _app.ReplaySnapshot(),

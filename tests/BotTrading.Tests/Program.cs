@@ -451,5 +451,47 @@ Check("conditional replay orders survive workspace reload", () => {
     }
     finally { if (Directory.Exists(dir)) Directory.Delete(dir, true); }
 });
+Check("DCA monthly contributions use first available monthly open", () => {
+    var candles = new[] {
+        new Candle(new DateOnly(2020, 1, 3), 10, 11, 9, 10, 100),
+        new Candle(new DateOnly(2020, 2, 3), 10, 11, 9, 10, 100),
+        new Candle(new DateOnly(2020, 3, 2), 10, 11, 9, 10, 100)
+    };
+    var result = new DcaSimulator().Run(new MarketSeries("AA", "Test", candles));
+    True(result.MonthCount == 3 && result.Points.Count == 3 && result.Contributions == 300m);
+    True(result.Points[0].ExecutionDate == candles[0].Date && result.Points[1].ExecutionDate == candles[1].Date);
+    True(result.Points[2].ExecutionDate == candles[2].Date && result.Points[2].Cash >= 0);
+    True(result.FinalEquity < result.Contributions, "Flat-price DCA pays entry costs and slippage.");
+});
+Check("DCA deposits and carries cash across missing monthly bars", () => {
+    var candles = new[] {
+        new Candle(new DateOnly(2020, 1, 3), 10, 11, 9, 10, 100),
+        new Candle(new DateOnly(2020, 3, 2), 10, 11, 9, 10, 100)
+    };
+    var result = new DcaSimulator().Run(new MarketSeries("AA", "Test", candles));
+    True(result.Points.Count == 3 && result.Points[1].ExecutionDate is null);
+    True(result.Points[1].Contributions == 200m && result.Points[1].Shares == result.Points[0].Shares);
+    True(result.Points[2].Shares > result.Points[1].Shares);
+});
+Check("DCA history cutoff excludes all later market prices and contributions", () => {
+    var candles = new[] {
+        new Candle(new DateOnly(2020, 1, 3), 10, 11, 9, 10, 100),
+        new Candle(new DateOnly(2020, 2, 3), 15, 16, 14, 15, 100),
+        new Candle(new DateOnly(2020, 3, 2), 200, 201, 199, 200, 100)
+    };
+    var series = new MarketSeries("AA", "Test", candles);
+    var report = new DcaSimulator().Run(series, end: new DateOnly(2020, 2, 20));
+    var prefix = new DcaSimulator().Run(new MarketSeries("AA", "Test", candles[..2]));
+    True(report.Points.Count == 2 && report.Contributions == 200m);
+    True(report.FinalEquity == prefix.FinalEquity && report.Shares == prefix.Shares);
+    True(report.Points[^1].MarkPrice == 15m);
+});
+Check("DCA refuses to fabricate earlier market history", () => {
+    var input = new MarketSeries("AA", "Test", [new(new DateOnly(2020, 2, 3), 10, 11, 9, 10, 100)]);
+    Throws<ArgumentException>(() => new DcaSimulator().Run(input, 100m, new DateOnly(2000, 1, 1)));
+    Throws<ArgumentException>(() => new DcaSimulator().Run(input, -50m));
+    var result = new DcaSimulator().Run(input, 100m, new DateOnly(2020, 2, 1));
+    True(result.MonthCount == 1 && result.Points[0].ExecutionDate == input.Candles[0].Date);
+});
 Console.WriteLine($"\nTotal: {pass} passed, {fail} failed");
 Environment.ExitCode = fail == 0 ? 0 : 1;
