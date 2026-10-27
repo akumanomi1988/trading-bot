@@ -32,14 +32,14 @@ Weights reflect estimated functional cost and acceptance burden, not source line
 - [x] Native postMessage bridge, dual charts, historical cutoff, strategy and paper UI.
 - [x] Fixed chronological train/test robustness holdout without choosing parameters on test observations.
 - [x] Eleven actual TypeScript chart/IPC-client tests executed and passed (2026-10-26).
-- [ ] Install .NET 10 SDK on a Windows-capable test runner; run console core tests and resolve all failures.
-- [ ] Install frontend dependencies, generate and commit package-lock.json, execute `npm run typecheck` / `npm run build`, repair TS/React errors.
+- [x] Windows .NET 10 CI builds the core and runs 31/31 console tests successfully at commit `993d51ab` (2026-10-27).
+- [x] GitHub CI provisions locked npm dependencies, passes 11/11 UI tests, React typecheck and production Vite build at commit `993d51ab`.
 - [ ] Execute real WebView2 smoke and native OpenFileDialog import test on Windows; verify CSP, navigation isolation, no remote HTTP API.
 - [ ] Exercise actual Stooq data download when the provider is reachable; verify symbol rules, rate limits and error recovery. Add second free provider/fallback if legally available.
-- [ ] Add fault-injection tests for malformed workspace JSON, atomic save rollback, reimport while analytics runs, large files and concurrent operations.
+- [ ] Expand fault injection for malformed workspace JSON, atomic save rollback, reimport while analytics runs, large files and concurrent operations. Paper-fill integrity and snapshot consistency assertions are in development.
 - [ ] Add calendar alignment & corporate action handling, plus missing-data diagnostics and data provenance.
 - [ ] Extend strategy model and add parameter range configuration, experiment save/load, trade-level reports and costs by instrument.
-- [x] Add four-fold expanding-window walk-forward, non-overlapping test periods and future-leakage assertions (pending Windows CI acceptance).
+- [x] Four-fold expanding-window walk-forward, non-overlapping test periods and future-leakage assertions, accepted on Windows CI `993d51ab`.
 - [ ] Add perturbation/stability maps and stronger evidence against overfitting.
 - [ ] Develop time-driven paper simulation with deterministic pending-order lifecycle and mark updates by replay timestamp.
 - [ ] News/sentiment/AI research using no-cost sources/tools only, with strict provenance, no proprietary scraping and explicit user control.

@@ -191,5 +191,30 @@ Check("walk-forward first fold unaffected by unseen future prices", () => {
     True(one.Folds[0] == two.Folds[0], "A future modification changed an earlier test fold.");
     True(one.Folds[0].TestEnd < two.Folds[1].TestStart);
 });
+Check("workspace rejects invalid persisted paper fills without rewriting", () => {
+    string dir = Path.Combine(Path.GetTempPath(), "bt-test-" + Guid.NewGuid().ToString("N"));
+    try
+    {
+        var market = Series("AA", 100, 110);
+        var store = new WorkspaceStore(dir);
+        store.Save(new([market], new(1000, [], [new PaperFill(DateTimeOffset.UtcNow, "AA", "BUY", 1, 100, 0)])));
+        string path = Path.Combine(dir, "workspace.v1.json");
+        string good = File.ReadAllText(path);
+        string tampered = good.Replace("\"side\": \"BUY\"", "\"side\": \"SHORT\"");
+        True(good != tampered, "Expected persisted fill to be present in fixture.");
+        File.WriteAllText(path, tampered);
+        Throws<InvalidDataException>(() => store.Load());
+        True(File.ReadAllText(path) == tampered, "Loading must never overwrite corrupt state.");
+    }
+    finally { if (Directory.Exists(dir)) Directory.Delete(dir, true); }
+});
+Check("paper snapshot is internally consistent after state replacement", () => {
+    var broker = new PaperBroker(new(1000, [], []));
+    broker.Reset(new(900, [new Position("AA", 1, 100)], []));
+    var view = broker.Snapshot([Series("AA", 120)]);
+    Nearly(view.Cash, 900);
+    Nearly(view.Equity, 1020);
+    Nearly(view.Positions[0].MarketValue, 120);
+});
 Console.WriteLine($"\nTotal: {pass} passed, {fail} failed");
 Environment.ExitCode = fail == 0 ? 0 : 1;

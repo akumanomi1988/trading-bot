@@ -36,8 +36,10 @@ public sealed class WorkspaceStore
             if (!unique.Add(market.Symbol)) throw new InvalidDataException("Duplicate series in workspace.");
             validated.Add(market);
         }
-        if (saved.Paper.Cash < 0 || saved.Paper.Positions.GroupBy(x => x.Symbol).Any(x => x.Count() > 1) ||
-            saved.Paper.Positions.Any(x => x.Quantity <= 0 || x.AveragePrice <= 0 || !unique.Contains(x.Symbol)))
+        if (saved.Paper.Cash < 0 || saved.Paper.Positions.GroupBy(x => x.Symbol, StringComparer.Ordinal).Any(x => x.Count() > 1) ||
+            saved.Paper.Positions.Any(x => x.Symbol is null || x.Quantity <= 0 || x.AveragePrice <= 0 || !unique.Contains(x.Symbol)) ||
+            saved.Paper.Fills.Count > 5000 || saved.Paper.Fills.Any(x => x.Symbol is null || !unique.Contains(x.Symbol) ||
+                x.Side is not ("BUY" or "SELL") || x.Quantity <= 0 || x.Quantity > 1_000_000 || x.Price <= 0 || x.Fee < 0))
             throw new InvalidDataException("Invalid paper account state. No data was overwritten.");
         return new(validated, saved.Paper);
     }
@@ -104,13 +106,16 @@ public sealed class PaperBroker
 
     public PaperView Snapshot(IReadOnlyCollection<MarketSeries> markets)
     {
+        // The owner may place an order concurrently with a read. Capture one immutable
+        // account snapshot so cash, positions, and fills refer to the same state version.
+        var account = _state;
         var marks = markets.ToDictionary(x => x.Symbol, x => x.Candles[^1].Close, StringComparer.Ordinal);
-        var positions = _state.Positions.Select(p =>
+        var positions = account.Positions.Select(p =>
         {
             decimal mark = marks.GetValueOrDefault(p.Symbol, p.AveragePrice);
             return new PositionView(p.Symbol, p.Quantity, p.AveragePrice, mark,
                 mark * p.Quantity, (mark - p.AveragePrice) * p.Quantity);
         }).ToArray();
-        return new(_state.Cash, _state.Cash + positions.Sum(x => x.MarketValue), positions.Sum(x => x.UnrealizedPnL), positions, _state.Fills);
+        return new(account.Cash, account.Cash + positions.Sum(x => x.MarketValue), positions.Sum(x => x.UnrealizedPnL), positions, account.Fills);
     }
 }
