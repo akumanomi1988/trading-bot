@@ -77,7 +77,7 @@ Prices must be positive; volume may be zero or omitted; each date must be unique
 3. The app makes **no connection to any broker and cannot place live trades**. Imported prices may be delayed, stale, unadjusted, erroneous or provider-dependent.
 4. Backtest fills use next-bar opening prices following a completed prior closing signal; simulated fees/slippage are configured but do not model partial fills, impact, spread dynamics, delistings, borrow, taxes or liquidity constraints.
 5. The 70/30 test uses only training observations to select its parameters; one split is insufficient to establish robustness. Paper fills use a historic close, NOT a live quote.
-6. Workspace replacement is atomic where the underlying Windows filesystem supports `File.Replace`. No cloud backup or encryption is currently implemented. Protect access to the Windows account and make external backups before critical changes.
+6. Workspace replacement is atomic where the underlying Windows filesystem supports `File.Replace`. The data toolbar can export a validated, portable JSON backup and restore it through native Windows file pickers; import validation runs before state mutation and a `workspace.pre-restore.v1.json` rollback copy is written locally first. Backups are not encrypted or cloud-synchronized: protect their contents and retain external copies.
 
 ## Verification status
 

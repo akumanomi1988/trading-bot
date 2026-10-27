@@ -107,6 +107,8 @@ public sealed class WorkstationForm : Form
         {
             "app.info" => new { version = "0.1.0", mode = "offline-first", execution = "simulation-only", source = "WebView2 bridge" },
             "assets.list" => _app.ListSeries(),
+            "workspace.exportBackup" => await ExportBackupWithDialogAsync(),
+            "workspace.restoreBackup" => await RestoreBackupWithDialogAsync(),
             "assets.series" => _app.GetSeries(Str("symbol")),
             "assets.quality" => await Task.Run(() => _app.AnalyzeQuality(Str("symbol"),
                 args.TryGetProperty("endDate", out var qualityDate) && qualityDate.ValueKind == JsonValueKind.String ?
@@ -156,6 +158,34 @@ public sealed class WorkstationForm : Form
     {
         await _app.ClearReplayAsync();
         return null;
+    }
+
+    private async Task<object> ExportBackupWithDialogAsync()
+    {
+        using var picker = new SaveFileDialog
+        {
+            Title = "Export verified BotTrading workspace backup",
+            Filter = "JSON backups (*.json)|*.json",
+            FileName = $"BotTrading-backup-{DateTime.Now:yyyy-MM-dd}.json",
+            OverwritePrompt = true
+        };
+        if (picker.ShowDialog(this) != DialogResult.OK) return new { cancelled = true };
+        await _app.ExportBackupAsync(picker.FileName);
+        return new { cancelled = false };
+    }
+
+    private async Task<object> RestoreBackupWithDialogAsync()
+    {
+        using var picker = new OpenFileDialog
+        {
+            Title = "Restore a BotTrading workspace backup",
+            Filter = "JSON backups (*.json)|*.json",
+            CheckFileExists = true,
+            Multiselect = false
+        };
+        if (picker.ShowDialog(this) != DialogResult.OK) return new { cancelled = true };
+        await _app.RestoreBackupAsync(picker.FileName);
+        return new { cancelled = false };
     }
 
     private async Task<object> ImportWithDialogAsync(string symbol)

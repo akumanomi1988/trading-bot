@@ -555,6 +555,67 @@ Check("replay rejects forged expired state missing good-through date", () => {
         "EXPIRED", ExecutedAt: state.CurrentDate, OrderType: "MARKET")] };
     Throws<InvalidDataException>(() => PaperReplayEngine.ValidatePersisted(bad, data));
 });
+
+Check("workspace backup roundtrip preserves series and account", () => {
+    var dir = Path.Combine(Path.GetTempPath(), "bt-backup-" + Guid.NewGuid().ToString("N"));
+    try {
+        var store = new WorkspaceStore(Path.Combine(dir, "active"));
+        var backup = Path.Combine(dir, "exports", "copy.json");
+        store.Save(new([Series("AA", 100m, 110m)], new(950m, [], [])));
+        store.ExportBackup(store.Load(), backup);
+        var restored = store.ReadBackup(backup);
+        True(restored.Series.Count == 1 && restored.Series[0].Candles.Count == 2);
+        Nearly(restored.Paper.Cash, 950m);
+        Throws<InvalidOperationException>(() => store.ExportBackup(restored,
+            Path.Combine(dir, "active", "workspace.v1.json")));
+    }
+    finally { if (Directory.Exists(dir)) Directory.Delete(dir, true); }
+});
+Check("workspace backup refuses missing, malformed and oversized restore files", () => {
+    var dir = Path.Combine(Path.GetTempPath(), "bt-bad-backup-" + Guid.NewGuid().ToString("N"));
+    Directory.CreateDirectory(dir);
+    try {
+        var store = new WorkspaceStore(dir);
+        Throws<FileNotFoundException>(() => store.ReadBackup(Path.Combine(dir, "missing.json")));
+        var bad = Path.Combine(dir, "bad.json");
+        File.WriteAllText(bad, "{not json}");
+        Throws<InvalidDataException>(() => store.ReadBackup(bad));
+        True(store.Load().Series.Count == 0 && store.Load().Paper.Cash == 10_000m);
+    }
+    finally { Directory.Delete(dir, true); }
+});
+Check("workstation restore is atomic and produces pre-restore recovery copy", () => {
+    var dir = Path.Combine(Path.GetTempPath(), "bt-restore-" + Guid.NewGuid().ToString("N"));
+    try {
+        var store = new WorkspaceStore(dir);
+        store.Save(new([Series("AA", 100m, 110m)], new(10_000m, [], [])));
+        using var workstation = new Workstation(store);
+        var backup = Path.Combine(dir, "backups", "snapshot.json");
+        workstation.ExportBackupAsync(backup).GetAwaiter().GetResult();
+        workstation.PaperOrderAsync("AA", "BUY", 1).GetAwaiter().GetResult();
+        True(workstation.PaperSnapshot().Positions.Count == 1);
+        workstation.RestoreBackupAsync(backup).GetAwaiter().GetResult();
+        True(workstation.PaperSnapshot().Positions.Count == 0);
+        Nearly(workstation.PaperSnapshot().Cash, 10_000m);
+        True(File.Exists(store.RecoveryBackupPath));
+        True(store.ReadBackup(store.RecoveryBackupPath).Paper.Positions.Count == 1);
+    }
+    finally { if (Directory.Exists(dir)) Directory.Delete(dir, true); }
+});
+Check("invalid restore never changes the active in-memory or saved workspace", () => {
+    var dir = Path.Combine(Path.GetTempPath(), "bt-restore-invalid-" + Guid.NewGuid().ToString("N"));
+    try {
+        var store = new WorkspaceStore(dir);
+        store.Save(new([Series("AA", 100m, 110m)], new(10_000m, [], [])));
+        using var workstation = new Workstation(store);
+        var bad = Path.Combine(dir, "malformed.json");
+        File.WriteAllText(bad, "{");
+        Throws<InvalidDataException>(() => workstation.RestoreBackupAsync(bad).GetAwaiter().GetResult());
+        True(workstation.ListSeries().Count == 1 && store.Load().Series.Count == 1);
+        Nearly(workstation.PaperSnapshot().Cash, store.Load().Paper.Cash);
+    }
+    finally { if (Directory.Exists(dir)) Directory.Delete(dir, true); }
+});
 Check("DCA monthly contributions use first available monthly open", () => {
     var candles = new[] {
         new Candle(new DateOnly(2020, 1, 3), 10, 11, 9, 10, 100),

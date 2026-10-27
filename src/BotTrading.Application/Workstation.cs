@@ -25,6 +25,44 @@ public sealed class Workstation : IDisposable
         _news = state.News ?? [];
     }
 
+    public async Task ExportBackupAsync(string destinationPath)
+    {
+        await _writeLock.WaitAsync();
+        try
+        {
+            Workspace state;
+            lock (_marketSync) state = new(_markets.ToArray(), _paper.State, _replay, _news);
+            await Task.Run(() => _store.ExportBackup(state, destinationPath));
+        }
+        finally { _writeLock.Release(); }
+    }
+
+    public async Task RestoreBackupAsync(string sourcePath)
+    {
+        // Read and validate the complete candidate BEFORE changing the persisted workspace.
+        var replacement = await Task.Run(() => _store.ReadBackup(sourcePath));
+        await _writeLock.WaitAsync();
+        try
+        {
+            await Task.Run(() =>
+            {
+                lock (_marketSync)
+                {
+                    // A deterministic rollback copy is saved before atomic replacement.
+                    _store.ExportBackup(new(_markets.ToArray(), _paper.State, _replay, _news),
+                        _store.RecoveryBackupPath);
+                    _store.Save(replacement);
+                    _markets.Clear();
+                    _markets.AddRange(replacement.Series);
+                    _paper.Reset(replacement.Paper);
+                    _replay = replacement.Replay;
+                    _news = replacement.News ?? [];
+                }
+            });
+        }
+        finally { _writeLock.Release(); }
+    }
+
     public IReadOnlyList<SeriesSummary> ListSeries()
     {
         lock (_marketSync) return _markets.Select(x => x.ToSummary()).OrderBy(x => x.Symbol).ToArray();

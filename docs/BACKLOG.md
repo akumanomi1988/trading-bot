@@ -42,7 +42,8 @@
 - [ ] Verify real Stooq fetch against provider availability; maintain honest attribution and import failure recovery. Add legally usable free fallback if the data contract is adequate.
 - [ ] Model market calendars, corporate actions and adjusted/raw price provenance; prevent split-induced false strategy performance.
 - [ ] Track instrument currency and trading venue; reject cross-currency aggregates until FX modeling is available.
-- [ ] Strengthen workspace corruption, interruption and migration fault-injection; build explicit backup/export/restore policy.
+- [ ] Strengthen workspace interruption, fault-injection and schema migration handling.
+- [x] Native JSON backup/export and validated atomic restore, with pre-restore recovery copy and corruption tests; Windows UI acceptance remains pending.
 - [ ] Perform reproducible 25 symbols × 100k candles memory, CPU and render profiling, with downsampling if required.
 
 ### Priority 1 — originally planned product scope

@@ -11,6 +11,7 @@ public sealed record PositionView(string Symbol, int Quantity, decimal AveragePr
 
 public sealed class WorkspaceStore
 {
+    private const long MaxWorkspaceBytes = 512L * 1024 * 1024;
     private readonly string _path;
     private readonly JsonSerializerOptions _json = new(JsonSerializerDefaults.Web) { WriteIndented = true };
 
@@ -20,10 +21,24 @@ public sealed class WorkspaceStore
         _path = Path.Combine(root, "workspace.v1.json");
     }
 
-    public Workspace Load()
+    public Workspace Load() => File.Exists(_path) ? ReadValidated(_path) : new([], new(10_000, [], []));
+
+    public string RecoveryBackupPath => Path.Combine(Path.GetDirectoryName(_path)!, "workspace.pre-restore.v1.json");
+
+    // Never interpret a missing restore source as a fresh empty workspace.
+    public Workspace ReadBackup(string sourcePath)
     {
-        if (!File.Exists(_path)) return new([], new(10_000, [], []));
-        var saved = JsonSerializer.Deserialize<Workspace>(File.ReadAllText(_path), _json)
+        if (string.IsNullOrWhiteSpace(sourcePath) || !File.Exists(sourcePath))
+            throw new FileNotFoundException("The selected backup file is missing.", sourcePath);
+        try { return ReadValidated(sourcePath); }
+        catch (JsonException ex) { throw new InvalidDataException("The backup is not valid workspace JSON.", ex); }
+    }
+
+    private Workspace ReadValidated(string path)
+    {
+        if (new FileInfo(path).Length > MaxWorkspaceBytes)
+            throw new InvalidDataException("The workspace exceeds the 512 MiB import safety limit.");
+        var saved = JsonSerializer.Deserialize<Workspace>(File.ReadAllText(path), _json)
             ?? throw new InvalidDataException("Workspace JSON is empty.");
         if (saved.Series is null || saved.Paper is null || saved.Paper.Positions is null || saved.Paper.Fills is null)
             throw new InvalidDataException("Workspace JSON is incomplete. No data was overwritten.");
@@ -53,17 +68,29 @@ public sealed class WorkspaceStore
         return new(validated, saved.Paper, saved.Replay, savedNews);
     }
 
-    public void Save(Workspace workspace)
+    public void Save(Workspace workspace) => WriteAtomic(workspace, _path);
+
+    public void ExportBackup(Workspace workspace, string destinationPath)
     {
-        var dir = Path.GetDirectoryName(_path)!;
+        if (string.IsNullOrWhiteSpace(destinationPath))
+            throw new ArgumentException("Backup destination is required.", nameof(destinationPath));
+        var target = Path.GetFullPath(destinationPath);
+        if (string.Equals(target, Path.GetFullPath(_path), StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("Cannot export over the live workspace.");
+        WriteAtomic(workspace, target);
+    }
+
+    private void WriteAtomic(Workspace workspace, string path)
+    {
+        var dir = Path.GetDirectoryName(path)!;
         Directory.CreateDirectory(dir);
         string temp = Path.Combine(dir, $"workspace.{Guid.NewGuid():N}.tmp");
         try
         {
             File.WriteAllText(temp, JsonSerializer.Serialize(workspace, _json));
             // File.Replace atomically replaces the destination on Windows when it exists.
-            if (File.Exists(_path)) File.Replace(temp, _path, null);
-            else File.Move(temp, _path);
+            if (File.Exists(path)) File.Replace(temp, path, null);
+            else File.Move(temp, path);
         }
         finally { if (File.Exists(temp)) File.Delete(temp); }
     }
