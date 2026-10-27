@@ -96,35 +96,14 @@ public static class PaperReplayEngine
                     continue;
                 }
                 var buy = order.Side == "BUY";
-                string type = order.OrderType ?? "MARKET";
-                // Orders are submitted after the previous completed daily candle.
-                // LIMIT remains queued until touched. STOP becomes a market execution when triggered.
-                decimal open = bar.Open;
-                decimal rawPrice;
-                if (type == "LIMIT")
+                // Shared price/trigger rules are used for execution AND persisted ledger audit.
+                var calculatedPrice = ResolveExecutionPrice(order, bar);
+                if (!calculatedPrice.HasValue)
                 {
-                    decimal limit = order.TriggerPrice!.Value;
-                    if (buy && bar.Low > limit || !buy && bar.High < limit)
-                    {
-                        changed.Add(order);
-                        continue;
-                    }
-                    rawPrice = buy ? Math.Min(open, limit) : Math.Max(open, limit);
+                    changed.Add(order);
+                    continue;
                 }
-                else if (type == "STOP")
-                {
-                    decimal stop = order.TriggerPrice!.Value;
-                    if (buy && bar.High < stop || !buy && bar.Low > stop)
-                    {
-                        changed.Add(order);
-                        continue;
-                    }
-                    rawPrice = buy ? Math.Max(open, stop) : Math.Min(open, stop);
-                }
-                else rawPrice = open;
-                decimal price = rawPrice * (buy ? 1m + SlippageBps / 10000m : 1m - SlippageBps / 10000m);
-                if (type == "LIMIT")
-                    price = buy ? Math.Min(price, order.TriggerPrice!.Value) : Math.Max(price, order.TriggerPrice!.Value);
+                decimal price = calculatedPrice.Value;
                 var fee = price * order.Quantity * FeeBps / 10000m;
                 decimal gross = price * order.Quantity;
                 string? reject = buy && gross + fee > cash ? "INSUFFICIENT_CASH"
@@ -189,6 +168,95 @@ public static class PaperReplayEngine
             throw new InvalidDataException("Invalid persisted replay session.");
         for (int i = 0; i < state.Orders.Count; i++)
             if (state.Orders[i].Sequence != i + 1) throw new InvalidDataException("Invalid replay order sequence.");
+
+        // A malicious or interrupted save must not forge free cash, holdings or prices.
+        ValidateFillLedger(state, series);
+    }
+
+    private static decimal? ResolveExecutionPrice(ReplayOrder order, Candle bar)
+    {
+        bool buy = order.Side == "BUY";
+        var type = order.OrderType ?? "MARKET";
+        decimal raw = bar.Open;
+        if (type == "LIMIT")
+        {
+            decimal limit = order.TriggerPrice!.Value;
+            if (buy && bar.Low > limit || !buy && bar.High < limit) return null;
+            raw = buy ? Math.Min(bar.Open, limit) : Math.Max(bar.Open, limit);
+        }
+        else if (type == "STOP")
+        {
+            decimal stop = order.TriggerPrice!.Value;
+            if (buy && bar.High < stop || !buy && bar.Low > stop) return null;
+            raw = buy ? Math.Max(bar.Open, stop) : Math.Min(bar.Open, stop);
+        }
+
+        decimal price = raw * (buy ? 1m + SlippageBps / 10000m : 1m - SlippageBps / 10000m);
+        if (type == "LIMIT")
+            price = buy ? Math.Min(price, order.TriggerPrice!.Value) : Math.Max(price, order.TriggerPrice!.Value);
+        return price;
+    }
+
+    private static void ValidateFillLedger(ReplaySession state, MarketSeries series)
+    {
+        decimal cash = state.InitialCapital;
+        int holdings = 0;
+        decimal avgCost = 0m;
+        try
+        {
+            // Historical execution order, not submission sequence, determines ledger balances.
+            foreach (var fill in state.Orders.Where(x => x.Status == "FILLED")
+                         .OrderBy(x => x.ExecutedAt).ThenBy(x => x.Sequence))
+            {
+                if (fill.ExecutedAt is null || fill.ExecutedAt.Value <= fill.RequestedAt)
+                    throw new InvalidDataException("A fill must occur after order submission.");
+                var bar = FindCandle(series.Candles, fill.ExecutedAt.Value);
+                if (bar is null || bar.Date > state.CurrentDate ||
+                    fill.GoodThrough.HasValue && bar.Date > fill.GoodThrough.Value)
+                    throw new InvalidDataException("A fill references an unavailable or expired replay candle.");
+                var price = ResolveExecutionPrice(fill, bar);
+                decimal fee = price.HasValue ? price.Value * fill.Quantity * FeeBps / 10000m : 0m;
+                if (price is null || price.Value != fill.Price || fee != fill.Fee)
+                    throw new InvalidDataException("A persisted replay execution disagrees with historical OHLC or trading costs.");
+                decimal gross = price.Value * fill.Quantity;
+                if (fill.Side == "BUY")
+                {
+                    if (gross + fee > cash)
+                        throw new InvalidDataException("Persisted replay has an unfunded historical buy.");
+                    avgCost = (avgCost * holdings + gross + fee) / (holdings + fill.Quantity);
+                    holdings += fill.Quantity;
+                    cash -= gross + fee;
+                }
+                else
+                {
+                    if (fill.Quantity > holdings)
+                        throw new InvalidDataException("Persisted replay has an uncovered historical sell.");
+                    holdings -= fill.Quantity;
+                    cash += gross - fee;
+                    if (holdings == 0) avgCost = 0m;
+                }
+            }
+        }
+        catch (OverflowException ex)
+        {
+            throw new InvalidDataException("Persisted replay ledger exceeds supported numeric bounds.", ex);
+        }
+
+        if (cash != state.Cash || holdings != state.Quantity || avgCost != state.AverageCost)
+            throw new InvalidDataException("Persisted replay cash, holdings or average cost disagree with executed fills.");
+    }
+
+    private static Candle? FindCandle(IReadOnlyList<Candle> candles, DateOnly date)
+    {
+        int low = 0, high = candles.Count - 1;
+        while (low <= high)
+        {
+            int middle = low + (high - low) / 2;
+            if (candles[middle].Date == date) return candles[middle];
+            if (candles[middle].Date < date) low = middle + 1;
+            else high = middle - 1;
+        }
+        return null;
     }
 
     private static int ValidateAndFind(ReplaySession state, MarketSeries series)

@@ -25,6 +25,8 @@ This protocol records tests that cannot be executed in the available Linux envir
 
 22. Strategy cost sensitivity: load an active ticker, choose SMA fast/slow and run the six-scenario stress report. All cases use the same dataset and parameters; fees and slippage each increase through 0, 5, 10, 25, 50 and 100 bps. For flat prices, SMA returns remain zero without trades, but passive benchmark returns decline with costs. Changing the ticker or parameters clears stale scenarios.
 
+23. Ledger integrity: execute multiple historical replay buys and a sell, close and reopen the application. Cash, holdings, average cost and fills must be unchanged. Tamper separately with a saved fill price, its fee, cash and position quantity in a copy of the workspace JSON; loading must reject every manipulated state without rewriting the invalid file.
+
 Never use a live brokerage account, production secrets or real money for acceptance.
 14. Benchmark parity: run the SMA strategy on a constant-price CSV with fees/slippage enabled. No crossover trade occurs, so the strategy return is zero while the passive buy-and-hold return is negative after purchase and liquidation costs; excess return equals the opposite of the benchmark return. Re-run with a 70/30 holdout and verify the benchmark purchases only at the test period's first opening, not the training period's opening.
 15. Data integrity panel: on a Friday/Monday consecutive CSV the candidate missing-weekday counter must remain zero. Insert a missing Tuesday and a +40% close-to-close move and verify separate counters and event dates. Move the historical cutoff to Monday and verify that later gaps/jumps are not disclosed; the warning must explain market holidays and corporate actions are not adjusted.

@@ -639,6 +639,49 @@ Check("cost sensitivity rejects invalid crossover parameters", () => {
     var input = Series("AA", Enumerable.Repeat(100m, 60).ToArray());
     Throws<ArgumentException>(() => new CostSensitivityService().Analyze(input, 12, 3));
 });
+
+Check("replay persisted ledger reconciles multiple orders on the same future bar", () => {
+    var data = Series("AA", 100m, 110m, 90m, 95m);
+    var state = PaperReplayEngine.Start(data, data.Candles[0].Date);
+    state = PaperReplayEngine.Submit(state, data, "BUY", 1, "LIMIT", 95m);
+    state = PaperReplayEngine.Advance(state, data);
+    state = PaperReplayEngine.Submit(state, data, "BUY", 1, "MARKET");
+    state = PaperReplayEngine.Advance(state, data);
+    True(state.Orders.Count == 2 && state.Orders.All(o => o.Status == "FILLED"));
+    True(state.Quantity == 2);
+    PaperReplayEngine.ValidatePersisted(state, data);
+});
+Check("replay persisted ledger rejects fabricated cash and average cost", () => {
+    var data = Series("AA", 100m, 110m, 90m);
+    var state = PaperReplayEngine.Submit(PaperReplayEngine.Start(data, data.Candles[0].Date),
+        data, "BUY", 2);
+    state = PaperReplayEngine.Advance(state, data);
+    PaperReplayEngine.ValidatePersisted(state, data);
+    Throws<InvalidDataException>(() => PaperReplayEngine.ValidatePersisted(state with { Cash = state.Cash + 10m }, data));
+    Throws<InvalidDataException>(() => PaperReplayEngine.ValidatePersisted(state with { AverageCost = state.AverageCost + 1m }, data));
+    Throws<InvalidDataException>(() => PaperReplayEngine.ValidatePersisted(state with { Quantity = 3 }, data));
+});
+Check("replay persisted ledger rejects tampered filled prices and fees", () => {
+    var data = Series("AA", 100m, 110m, 90m);
+    var state = PaperReplayEngine.Submit(PaperReplayEngine.Start(data, data.Candles[0].Date),
+        data, "BUY", 2);
+    state = PaperReplayEngine.Advance(state, data);
+    var forgedPrice = state with { Orders = [state.Orders[0] with { Price = state.Orders[0].Price!.Value + 1m }] };
+    Throws<InvalidDataException>(() => PaperReplayEngine.ValidatePersisted(forgedPrice, data));
+    var forgedFee = state with { Orders = [state.Orders[0] with { Fee = 0m }] };
+    Throws<InvalidDataException>(() => PaperReplayEngine.ValidatePersisted(forgedFee, data));
+});
+Check("replay persisted ledger accepts completed buy/sell and rejected orders", () => {
+    var data = Series("AA", 100m, 110m, 120m, 130m);
+    var state = PaperReplayEngine.Start(data, data.Candles[0].Date);
+    state = PaperReplayEngine.Submit(state, data, "SELL", 1);
+    state = PaperReplayEngine.Submit(state, data, "BUY", 1);
+    state = PaperReplayEngine.Advance(state, data);
+    state = PaperReplayEngine.Submit(state, data, "SELL", 1);
+    state = PaperReplayEngine.Advance(state, data);
+    True(state.Orders[0].Status == "REJECTED" && state.Quantity == 0);
+    PaperReplayEngine.ValidatePersisted(state, data);
+});
 Check("DCA monthly contributions use first available monthly open", () => {
     var candles = new[] {
         new Candle(new DateOnly(2020, 1, 3), 10, 11, 9, 10, 100),
