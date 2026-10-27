@@ -118,6 +118,7 @@ public sealed class WorkstationForm : Form
             "backtest.run" => _app.Backtest(Str("symbol"), Int("fastPeriod"), Int("slowPeriod")),
             "backtest.optimize" => await Task.Run(() => _app.Optimize(Str("symbol"))),
             "strategy.validate" => await Task.Run(() => _app.ValidateOutOfSample(Str("symbol"))),
+            "strategy.walkForward" => await Task.Run(() => _app.ValidateWalkForward(Str("symbol"))),
             "paper.snapshot" => _app.PaperSnapshot(),
             "paper.order" => await _app.PaperOrderAsync(Str("symbol"), Str("side"), Int("quantity")),
             "paper.reset" => await _app.ResetPaperAsync(),

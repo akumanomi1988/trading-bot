@@ -163,5 +163,33 @@ Check("out-of-sample split never selects using future data", () => {
 });
 Check("out-of-sample requires 300 candles", () => Throws<ArgumentException>(() =>
     new RobustnessService().Validate(Series("AA", Enumerable.Repeat(100m,120).ToArray()))));
+Check("walk-forward requires sufficient history", () => Throws<ArgumentException>(() =>
+    new WalkForwardService().Validate(Series("AA", Enumerable.Repeat(100m, 350).ToArray()))));
+Check("walk-forward validates fold count", () => Throws<ArgumentOutOfRangeException>(() =>
+    new WalkForwardService().Validate(Series("AA", Enumerable.Repeat(100m, 500).ToArray()), 1)));
+Check("walk-forward test segments are contiguous and do not overlap", () => {
+    var data = Series("AA", Enumerable.Range(0, 600).Select(i => 100m + i % 43 + i / 12m).ToArray());
+    var report = new WalkForwardService().Validate(data);
+    True(report.Folds.Count == 4);
+    int first = 300;
+    for (int i = 0; i < 4; i++)
+    {
+        var f = report.Folds[i];
+        True(f.TrainingEnd < f.TestStart && f.TestStart == data.Candles[first].Date);
+        True(f.FastPeriod >= 2 && f.FastPeriod < f.SlowPeriod);
+        first = data.Candles.ToList().FindIndex(x => x.Date == f.TestEnd) + 1;
+        if (i < 3) True(f.TestEnd < report.Folds[i + 1].TestStart);
+    }
+    True(first == data.Candles.Count);
+});
+Check("walk-forward first fold unaffected by unseen future prices", () => {
+    var data = Enumerable.Range(0, 600).Select(i => 110m + i % 19 + i / 13m).ToArray();
+    var changed = data.Select((value, i) => i < 375 ? value : 180m + i % 31).ToArray();
+    var validator = new WalkForwardService();
+    var one = validator.Validate(Series("AA", data));
+    var two = validator.Validate(Series("AA", changed));
+    True(one.Folds[0] == two.Folds[0], "A future modification changed an earlier test fold.");
+    True(one.Folds[0].TestEnd < two.Folds[1].TestStart);
+});
 Console.WriteLine($"\nTotal: {pass} passed, {fail} failed");
 Environment.ExitCode = fail == 0 ? 0 : 1;

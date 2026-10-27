@@ -39,7 +39,8 @@ Weights reflect estimated functional cost and acceptance burden, not source line
 - [ ] Add fault-injection tests for malformed workspace JSON, atomic save rollback, reimport while analytics runs, large files and concurrent operations.
 - [ ] Add calendar alignment & corporate action handling, plus missing-data diagnostics and data provenance.
 - [ ] Extend strategy model and add parameter range configuration, experiment save/load, trade-level reports and costs by instrument.
-- [ ] Add multi-fold walk-forward, perturbation/stability maps and stronger evidence against overfitting.
+- [x] Add four-fold expanding-window walk-forward, non-overlapping test periods and future-leakage assertions (pending Windows CI acceptance).
+- [ ] Add perturbation/stability maps and stronger evidence against overfitting.
 - [ ] Develop time-driven paper simulation with deterministic pending-order lifecycle and mark updates by replay timestamp.
 - [ ] News/sentiment/AI research using no-cost sources/tools only, with strict provenance, no proprietary scraping and explicit user control.
 - [ ] End-to-end native UI tests (keyboard, focus, cancellation, disconnects, restarting, thousands of bars), responsive and accessibility pass.

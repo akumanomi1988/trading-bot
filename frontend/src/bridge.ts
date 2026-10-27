@@ -18,6 +18,12 @@ export type ValidationReport = {
   symbol: string; trainStart: string; trainEnd: string; testStart: string; testEnd: string;
   fastPeriod: number; slowPeriod: number; training: BacktestResult; outOfSample: BacktestResult;
 };
+export type WalkForwardReport = {
+  symbol: string; foldCount: number; positiveFoldPct: number; medianTestReturnPct: number;
+  folds: { number: number; trainingStart: string; trainingEnd: string; testStart: string;
+    testEnd: string; fastPeriod: number; slowPeriod: number; trainingReturnPct: number;
+    testReturnPct: number; testMaxDrawdownPct: number; testRoundTrips: number }[];
+};
 export type AppInfo = { version: string; mode: string; execution: string; source: string };
 type WebViewPort = { postMessage(message: unknown): void; addEventListener(type: 'message', handler: (event: MessageEvent) => void): void };
 declare global { interface Window { chrome?: { webview?: WebViewPort } } }
