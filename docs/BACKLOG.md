@@ -32,16 +32,17 @@ Weights reflect estimated functional cost and acceptance burden, not source line
 - [x] Native postMessage bridge, dual charts, historical cutoff, strategy and paper UI.
 - [x] Fixed chronological train/test robustness holdout without choosing parameters on test observations.
 - [x] Eleven actual TypeScript chart/IPC-client tests executed and passed (2026-10-26).
-- [x] Windows .NET 10 CI builds the core and runs 33/33 console tests successfully at commit `85ae5d00` (2026-10-27).
-- [x] GitHub CI provisions locked npm dependencies, passes 11/11 UI tests, React typecheck and production Vite build at commit `85ae5d00`.
+- [x] Windows .NET 10 CI builds the core and runs 31/31 console tests successfully at commit `993d51ab` (2026-10-27).
+- [x] GitHub CI provisions locked npm dependencies, passes 11/11 UI tests, React typecheck and production Vite build at commit `993d51ab`.
 - [ ] Execute real WebView2 smoke and native OpenFileDialog import test on Windows; verify CSP, navigation isolation, no remote HTTP API.
 - [ ] Exercise actual Stooq data download when the provider is reachable; verify symbol rules, rate limits and error recovery. Add second free provider/fallback if legally available.
-- [x] Validate persisted paper-fill integrity and consistent account snapshots with regression tests.\n- [ ] Expand fault injection for malformed workspace JSON, atomic save rollback, reimport while analytics runs, large files and concurrent operations.
+- [ ] Expand fault injection for malformed workspace JSON, atomic save rollback, reimport while analytics runs, large files and concurrent operations. Paper-fill integrity and snapshot consistency assertions are in development.
 - [ ] Add calendar alignment & corporate action handling, plus missing-data diagnostics and data provenance.
 - [ ] Extend strategy model and add parameter range configuration, experiment save/load, trade-level reports and costs by instrument.
-- [x] Four-fold expanding-window walk-forward, non-overlapping test periods and future-leakage assertions, accepted on Windows CI `85ae5d00`.
+- [x] Four-fold expanding-window walk-forward, non-overlapping test periods and future-leakage assertions, accepted on Windows CI `993d51ab`.
 - [ ] Add perturbation/stability maps and stronger evidence against overfitting.
-- [ ] Develop time-driven paper simulation with deterministic pending-order lifecycle and mark updates by replay timestamp.
+- [x] Implement historical time-driven paper replay: queued orders, next-open fills, rejection states, chronological marks, persistent cursor, and history-rewrite protection. Windows CI acceptance pending.
+- [ ] Extend replay with conditional/limit orders, scheduled fills and advanced execution assumptions.
 - [ ] News/sentiment/AI research using no-cost sources/tools only, with strict provenance, no proprietary scraping and explicit user control.
 - [ ] End-to-end native UI tests (keyboard, focus, cancellation, disconnects, restarting, thousands of bars), responsive and accessibility pass.
 - [ ] Performance profile: 25 instruments × up to 100k candles; optimize persistence/render limits where necessary.

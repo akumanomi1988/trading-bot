@@ -12,6 +12,7 @@ public sealed class Workstation : IDisposable
     private readonly object _marketSync = new();
     private readonly List<MarketSeries> _markets;
     private readonly PaperBroker _paper;
+    private ReplaySession? _replay;
 
     public Workstation(WorkspaceStore? store = null)
     {
@@ -19,6 +20,7 @@ public sealed class Workstation : IDisposable
         var state = _store.Load();
         _markets = state.Series.ToList();
         _paper = new(state.Paper);
+        _replay = state.Replay;
     }
 
     public IReadOnlyList<SeriesSummary> ListSeries()
@@ -57,6 +59,58 @@ public sealed class Workstation : IDisposable
     }
     public ValidationReport ValidateOutOfSample(string symbol) => new RobustnessService().Validate(GetSeries(symbol));
     public WalkForwardReport ValidateWalkForward(string symbol) => new WalkForwardService().Validate(GetSeries(symbol));
+
+    public ReplaySnapshot? ReplaySnapshot()
+    {
+        lock (_marketSync) return _replay is null ? null : PaperReplayEngine.Snapshot(_replay, GetSeries(_replay.Symbol));
+    }
+
+    public Task<ReplaySnapshot> StartReplayAsync(string symbol, DateOnly startDate) =>
+        UpdateReplayAsync(_ => PaperReplayEngine.Start(GetSeries(symbol), startDate));
+
+    public Task<ReplaySnapshot> SubmitReplayOrderAsync(string side, int quantity) =>
+        UpdateReplayAsync(previous => previous is null
+            ? throw new InvalidOperationException("Start a market replay before submitting orders.")
+            : PaperReplayEngine.Submit(previous, GetSeries(previous.Symbol), side, quantity));
+
+    public Task<ReplaySnapshot> AdvanceReplayAsync(int steps) =>
+        UpdateReplayAsync(previous => previous is null
+            ? throw new InvalidOperationException("Start a market replay before advancing time.")
+            : PaperReplayEngine.Advance(previous, GetSeries(previous.Symbol), steps));
+
+    public async Task ClearReplayAsync()
+    {
+        await _writeLock.WaitAsync();
+        try
+        {
+            lock (_marketSync)
+            {
+                var previous = _replay;
+                _replay = null;
+                try { Save(); }
+                catch { _replay = previous; throw; }
+            }
+        }
+        finally { _writeLock.Release(); }
+    }
+
+    private async Task<ReplaySnapshot> UpdateReplayAsync(Func<ReplaySession?, ReplaySession> change)
+    {
+        await _writeLock.WaitAsync();
+        try
+        {
+            lock (_marketSync)
+            {
+                var previous = _replay;
+                var updated = change(previous);
+                _replay = updated;
+                try { Save(); }
+                catch { _replay = previous; throw; }
+                return PaperReplayEngine.Snapshot(updated, GetSeries(updated.Symbol));
+            }
+        }
+        finally { _writeLock.Release(); }
+    }
 
     public async Task<SeriesSummary> ImportCsvAsync(string path, string symbol, string? name = null)
     {
@@ -122,7 +176,16 @@ public sealed class Workstation : IDisposable
                     if (next.Count >= 25) throw new InvalidOperationException("Maximum 25 instruments in local workspace.");
                     next.Add(market);
                 }
-                _store.Save(new(next, _paper.State));
+                if (_replay is not null && _replay.Symbol == market.Symbol)
+                {
+                    var previous = _markets.First(x => x.Symbol == market.Symbol);
+                    var oldHistory = previous.Candles.Where(x => x.Date <= _replay.CurrentDate).ToArray();
+                    var newHistory = market.Candles.Where(x => x.Date <= _replay.CurrentDate).ToArray();
+                    if (!oldHistory.SequenceEqual(newHistory))
+                        throw new InvalidOperationException("Imported data would rewrite the active replay history. Discard the replay first.");
+                    PaperReplayEngine.ValidatePersisted(_replay, market);
+                }
+                _store.Save(new(next, _paper.State, _replay));
                 _markets.Clear();
                 _markets.AddRange(next);
                 return market.ToSummary();
@@ -145,7 +208,7 @@ public sealed class Workstation : IDisposable
 
     private void Save()
     {
-        lock (_marketSync) _store.Save(new(_markets.ToArray(), _paper.State));
+        lock (_marketSync) _store.Save(new(_markets.ToArray(), _paper.State, _replay));
     }
     public void Dispose() { _feed.Dispose(); _writeLock.Dispose(); }
 }

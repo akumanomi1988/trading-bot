@@ -119,11 +119,22 @@ public sealed class WorkstationForm : Form
             "backtest.optimize" => await Task.Run(() => _app.Optimize(Str("symbol"))),
             "strategy.validate" => await Task.Run(() => _app.ValidateOutOfSample(Str("symbol"))),
             "strategy.walkForward" => await Task.Run(() => _app.ValidateWalkForward(Str("symbol"))),
+            "replay.snapshot" => _app.ReplaySnapshot(),
+            "replay.clear" => await ClearReplayAsync(),
+            "replay.start" => await _app.StartReplayAsync(Str("symbol"), DateOnly.Parse(Str("startDate"))),
+            "replay.submit" => await _app.SubmitReplayOrderAsync(Str("side"), Int("quantity")),
+            "replay.advance" => await _app.AdvanceReplayAsync(Int("steps")),
             "paper.snapshot" => _app.PaperSnapshot(),
             "paper.order" => await _app.PaperOrderAsync(Str("symbol"), Str("side"), Int("quantity")),
             "paper.reset" => await _app.ResetPaperAsync(),
             _ => throw new ArgumentException($"Unknown bridge command '{action}'.")
         };
+    }
+
+    private async Task<object?> ClearReplayAsync()
+    {
+        await _app.ClearReplayAsync();
+        return null;
     }
 
     private async Task<object> ImportWithDialogAsync(string symbol)

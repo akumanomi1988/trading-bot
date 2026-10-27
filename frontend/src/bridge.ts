@@ -24,6 +24,11 @@ export type WalkForwardReport = {
     testEnd: string; fastPeriod: number; slowPeriod: number; trainingReturnPct: number;
     testReturnPct: number; testMaxDrawdownPct: number; testRoundTrips: number }[];
 };
+export type ReplayOrder = { sequence: number; requestedAt: string; side: 'BUY' | 'SELL'; quantity: number;
+  status: 'PENDING' | 'FILLED' | 'REJECTED'; executedAt?: string | null; price?: number | null; fee: number; reason?: string | null };
+export type ReplaySnapshot = { symbol: string; currentDate: string; finalDate: string; cash: number;
+  quantity: number; averageCost: number; markPrice: number; equity: number; unrealizedPnL: number;
+  atEnd: boolean; remainingSessions: number; orders: ReplayOrder[] };
 export type AppInfo = { version: string; mode: string; execution: string; source: string };
 type WebViewPort = { postMessage(message: unknown): void; addEventListener(type: 'message', handler: (event: MessageEvent) => void): void };
 declare global { interface Window { chrome?: { webview?: WebViewPort } } }

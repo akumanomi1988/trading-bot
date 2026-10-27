@@ -36,6 +36,12 @@ public sealed class WorkspaceStore
             if (!unique.Add(market.Symbol)) throw new InvalidDataException("Duplicate series in workspace.");
             validated.Add(market);
         }
+        if (saved.Replay is not null)
+        {
+            var replaySeries = validated.FirstOrDefault(x => x.Symbol == saved.Replay.Symbol)
+                ?? throw new InvalidDataException("Replay market is missing from the workspace.");
+            PaperReplayEngine.ValidatePersisted(saved.Replay, replaySeries);
+        }
         if (saved.Paper.Cash < 0 || saved.Paper.Positions.GroupBy(x => x.Symbol, StringComparer.Ordinal).Any(x => x.Count() > 1) ||
             saved.Paper.Positions.Any(x => x.Symbol is null || x.Quantity <= 0 || x.AveragePrice <= 0 || !unique.Contains(x.Symbol)) ||
             saved.Paper.Fills.Count > 5000 || saved.Paper.Fills.Any(x => x.Symbol is null || !unique.Contains(x.Symbol) ||
@@ -60,7 +66,7 @@ public sealed class WorkspaceStore
     }
 }
 
-public sealed record Workspace(IReadOnlyList<MarketSeries> Series, PaperAccount Paper);
+public sealed record Workspace(IReadOnlyList<MarketSeries> Series, PaperAccount Paper, ReplaySession? Replay = null);
 
 public sealed class PaperBroker
 {

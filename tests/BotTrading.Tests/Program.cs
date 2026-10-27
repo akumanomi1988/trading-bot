@@ -216,5 +216,96 @@ Check("paper snapshot is internally consistent after state replacement", () => {
     Nearly(view.Equity, 1020);
     Nearly(view.Positions[0].MarketValue, 120);
 });
+Check("replay fills next opening, never the submitting close", () => {
+    var series = Series("AA", 100, 105, 110, 120);
+    var session = PaperReplayEngine.Start(series, series.Candles[0].Date);
+    session = PaperReplayEngine.Submit(session, series, "BUY", 2);
+    True(session.Orders[0].Status == "PENDING" && session.Cash == 10_000m);
+    session = PaperReplayEngine.Advance(session, series);
+    var fill = session.Orders[0];
+    True(fill.Status == "FILLED" && fill.ExecutedAt == series.Candles[1].Date);
+    True(fill.Price > 105m && fill.Fee > 0 && session.Quantity == 2);
+    var once = session.Cash;
+    session = PaperReplayEngine.Advance(session, series);
+    Nearly(session.Cash, once);
+    True(session.Orders.Count == 1 && session.Orders[0].Status == "FILLED");
+});
+Check("replay rejects orders it cannot fund or cover", () => {
+    var data = Series("AA", 100, 110, 120, 130);
+    var session = PaperReplayEngine.Start(data, data.Candles[0].Date, 1000);
+    session = PaperReplayEngine.Submit(session, data, "SELL", 1);
+    session = PaperReplayEngine.Submit(session, data, "BUY", 1000);
+    session = PaperReplayEngine.Advance(session, data);
+    True(session.Orders.All(x => x.Status == "REJECTED"));
+    Nearly(session.Cash, 1000);
+    True(session.Quantity == 0);
+});
+Check("replay selling holdings uses subsequent open and clears cost basis", () => {
+    var data = Series("AA", 100, 110, 120, 130);
+    var session = PaperReplayEngine.Start(data, data.Candles[0].Date);
+    session = PaperReplayEngine.Submit(session, data, "BUY", 2);
+    session = PaperReplayEngine.Advance(session, data);
+    session = PaperReplayEngine.Submit(session, data, "SELL", 2);
+    session = PaperReplayEngine.Advance(session, data);
+    True(session.Orders[1].Status == "FILLED" && session.Orders[1].ExecutedAt == data.Candles[2].Date);
+    True(session.Quantity == 0 && session.AverageCost == 0m && session.Cash > 10000m);
+});
+Check("replay rejects history advancing beyond final candle", () => {
+    var data = Series("AA", 100, 110, 120);
+    var session = PaperReplayEngine.Start(data, data.Candles[0].Date);
+    Throws<InvalidOperationException>(() => PaperReplayEngine.Advance(session, data, 3));
+    session = PaperReplayEngine.Advance(session, data, 2);
+    True(PaperReplayEngine.Snapshot(session, data).AtEnd);
+    Throws<InvalidOperationException>(() => PaperReplayEngine.Submit(session, data, "BUY", 1));
+});
+Check("replay recovery from workspace preserves cursor and pending order", () => {
+    var dir = Path.Combine(Path.GetTempPath(), "bt-test-" + Guid.NewGuid().ToString("N"));
+    try
+    {
+        var data = Series("AA", 100, 110, 120);
+        var session = PaperReplayEngine.Submit(PaperReplayEngine.Start(data, data.Candles[0].Date), data, "BUY", 1);
+        var store = new WorkspaceStore(dir);
+        store.Save(new([data], new(10000m, [], []), session));
+        var recovered = store.Load().Replay ?? throw new Exception("Replay disappeared.");
+        True(recovered.CurrentDate == data.Candles[0].Date && recovered.Orders[0].Status == "PENDING");
+        recovered = PaperReplayEngine.Advance(recovered, data);
+        True(recovered.Quantity == 1 && recovered.Orders[0].Status == "FILLED");
+    }
+    finally { if (Directory.Exists(dir)) Directory.Delete(dir, true); }
+});
+Check("historical replay cannot use a later candle to alter an earlier fill", () => {
+    var first = Series("AA", 100, 110, 120, 130);
+    var second = Series("AA", 100, 110, 200, 210);
+    var a = PaperReplayEngine.Submit(PaperReplayEngine.Start(first, first.Candles[0].Date), first, "BUY", 1);
+    var b = PaperReplayEngine.Submit(PaperReplayEngine.Start(second, second.Candles[0].Date), second, "BUY", 1);
+    a = PaperReplayEngine.Advance(a, first);
+    b = PaperReplayEngine.Advance(b, second);
+    True(a.Orders[0] == b.Orders[0] && a.Cash == b.Cash && a.CurrentDate == b.CurrentDate);
+});
+Check("active replay refuses reimport that rewrites already viewed history", () => {
+    string dir = Path.Combine(Path.GetTempPath(), "bt-test-" + Guid.NewGuid().ToString("N"));
+    try
+    {
+        var series = Series("AA", 100, 110, 120, 130);
+        var replay = PaperReplayEngine.Start(series, series.Candles[0].Date);
+        var store = new WorkspaceStore(dir);
+        store.Save(new([series], new(10000m, [], []), replay));
+        using var workstation = new Workstation(store);
+        string path = Path.Combine(dir, "replacement.csv");
+        var rows = new List<string> { "Date,Open,High,Low,Close,Volume" };
+        foreach (var bar in series.Candles)
+        {
+            var close = bar.Date == replay.CurrentDate ? bar.Close + 2 : bar.Close;
+            rows.Add($"{bar.Date:yyyy-MM-dd},{close},{close + 1},{close - 1},{close},100");
+        }
+        File.WriteAllLines(path, rows);
+        Throws<InvalidOperationException>(() => workstation.ImportCsvAsync(path, "AA").GetAwaiter().GetResult());
+        True(workstation.GetSeries("AA").Candles[0].Close == 100m);
+        workstation.ClearReplayAsync().GetAwaiter().GetResult();
+        var updated = workstation.ImportCsvAsync(path, "AA").GetAwaiter().GetResult();
+        True(updated.LastClose == 130m && workstation.GetSeries("AA").Candles[0].Close == 102m);
+    }
+    finally { if (Directory.Exists(dir)) Directory.Delete(dir, true); }
+});
 Console.WriteLine($"\nTotal: {pass} passed, {fail} failed");
 Environment.ExitCode = fail == 0 ? 0 : 1;
