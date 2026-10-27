@@ -14,18 +14,36 @@ public sealed record Candle(DateOnly Date, decimal Open, decimal High, decimal L
     }
 }
 
+public sealed record PriceProvenance(string Source, string AdjustmentStatus, string? CurrencyCode = null, string? Venue = null)
+{
+    public void Validate()
+    {
+        if (Source is not ("STOOQ" or "USER_CSV" or "UNSPECIFIED"))
+            throw new ArgumentException("Unknown historical data source.");
+        if (AdjustmentStatus is not ("UNKNOWN" or "RAW" or "ADJUSTED"))
+            throw new ArgumentException("Adjustment status must be UNKNOWN, RAW or ADJUSTED.");
+        if (CurrencyCode is not null && !Regex.IsMatch(CurrencyCode, "^[A-Z]{3}$", RegexOptions.CultureInvariant))
+            throw new ArgumentException("Currency must be an ISO-style uppercase three-letter code.");
+        if (Venue is not null && !Regex.IsMatch(Venue, "^[A-Z0-9._-]{1,20}$", RegexOptions.CultureInvariant))
+            throw new ArgumentException("Trading venue must be an uppercase ASCII code.");
+    }
+}
+
 public sealed class MarketSeries
 {
     private static readonly Regex ValidTicker = new("^[A-Z0-9][A-Z0-9._-]{0,19}$", RegexOptions.CultureInvariant | RegexOptions.Compiled);
     public string Symbol { get; }
     public string Name { get; }
     public IReadOnlyList<Candle> Candles { get; }
+    public PriceProvenance Provenance { get; }
 
-    public MarketSeries(string symbol, string name, IReadOnlyList<Candle> candles)
+    public MarketSeries(string symbol, string name, IReadOnlyList<Candle> candles, PriceProvenance? provenance = null)
     {
         Symbol = symbol.Trim().ToUpperInvariant();
         if (!ValidTicker.IsMatch(Symbol)) throw new ArgumentException("Symbol must be 1-20 ASCII ticker characters.", nameof(symbol));
         Name = string.IsNullOrWhiteSpace(name) ? Symbol : name.Trim()[..Math.Min(name.Trim().Length, 80)];
+        Provenance = provenance ?? new PriceProvenance("UNSPECIFIED", "UNKNOWN");
+        Provenance.Validate();
         var data = candles.OrderBy(c => c.Date).ToArray();
         if (data.Length == 0 || data.Length > 100_000) throw new ArgumentException("Series must contain 1-100000 candles.");
         foreach (var candle in data) candle.Validate();
@@ -34,10 +52,11 @@ public sealed class MarketSeries
         Candles = Array.AsReadOnly(data);
     }
 
-    public SeriesSummary ToSummary() => new(Symbol, Name, Candles.Count, Candles[0].Date, Candles[^1].Date, Candles[^1].Close);
+    public SeriesSummary ToSummary() => new(Symbol, Name, Candles.Count, Candles[0].Date, Candles[^1].Date, Candles[^1].Close, Provenance);
 }
 
-public sealed record SeriesSummary(string Symbol, string Name, int Count, DateOnly Start, DateOnly End, decimal LastClose);
+public sealed record SeriesSummary(string Symbol, string Name, int Count, DateOnly Start, DateOnly End, decimal LastClose,
+    PriceProvenance? Provenance = null);
 
 public static class Indicators
 {

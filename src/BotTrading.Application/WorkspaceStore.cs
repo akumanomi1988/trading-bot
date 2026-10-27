@@ -47,7 +47,7 @@ public sealed class WorkspaceStore
         var validated = new List<MarketSeries>();
         foreach (var item in saved.Series)
         {
-            var market = new MarketSeries(item.Symbol, item.Name, item.Candles);
+            var market = new MarketSeries(item.Symbol, item.Name, item.Candles, item.Provenance);
             if (!unique.Add(market.Symbol)) throw new InvalidDataException("Duplicate series in workspace.");
             validated.Add(market);
         }

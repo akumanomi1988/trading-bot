@@ -1,11 +1,14 @@
 export type Candle = { date: string; open: number; high: number; low: number; close: number; volume: number };
-export type Asset = { symbol: string; name: string; count: number; start: string; end: string; lastClose: number };
-export type Series = { symbol: string; name: string; candles: Candle[] };
+export type PriceProvenance = { source: 'STOOQ' | 'USER_CSV' | 'UNSPECIFIED';
+  adjustmentStatus: 'UNKNOWN' | 'RAW' | 'ADJUSTED'; currencyCode?: string | null; venue?: string | null };
+export type Asset = { symbol: string; name: string; count: number; start: string; end: string; lastClose: number;
+  provenance?: PriceProvenance };
+export type Series = { symbol: string; name: string; candles: Candle[]; provenance?: PriceProvenance };
 export type Pattern = { symbol: string; start: string; end: string; correlation: number; distance: number };
 export type PatternSearch = { querySymbol: string; queryStart: string; queryEnd: string; window: number; matches: Pattern[] };
 export type DataQualityReport = { symbol: string; first: string; last: string; candleCount: number;
   candidateMissingWeekdays: number; calendarGapCount: number; zeroVolumeBars: number;
-  largePriceMoveCount: number; largestCalendarGaps: { after: string; before: string; missingWeekdays: number }[];
+  largePriceMoveCount: number; provenance?: PriceProvenance; largestCalendarGaps: { after: string; before: string; missingWeekdays: number }[];
   largestPriceMoves: { date: string; previousClose: number; close: number; absoluteChangePct: number }[] };
 export type Fill = { date: string; side: 'BUY' | 'SELL'; quantity: number; price: number; fee: number; reason: string };
 export type RiskMetrics = { annualizedVolatilityPct: number | null; sharpeRatio: number | null;

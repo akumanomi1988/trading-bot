@@ -6,7 +6,8 @@ public sealed record CalendarGap(DateOnly After, DateOnly Before, int MissingWee
 public sealed record PriceJump(DateOnly Date, decimal PreviousClose, decimal Close, decimal AbsoluteChangePct);
 public sealed record DataQualityReport(string Symbol, DateOnly First, DateOnly Last, int CandleCount,
     int CandidateMissingWeekdays, int CalendarGapCount, int ZeroVolumeBars, int LargePriceMoveCount,
-    IReadOnlyList<CalendarGap> LargestCalendarGaps, IReadOnlyList<PriceJump> LargestPriceMoves);
+    IReadOnlyList<CalendarGap> LargestCalendarGaps, IReadOnlyList<PriceJump> LargestPriceMoves,
+    PriceProvenance? Provenance = null);
 
 public sealed class DataQualityService
 {
@@ -58,7 +59,8 @@ public sealed class DataQualityService
         return new DataQualityReport(series.Symbol, candles[0].Date, candles[visibleCount - 1].Date,
             visibleCount, missingTotal, gapCount, zeroVolumeCount, jumpCount,
             gaps.OrderByDescending(x => x.MissingWeekdays).ThenBy(x => x.Before).Take(10).ToArray(),
-            jumps.OrderByDescending(x => x.AbsoluteChangePct).ThenBy(x => x.Date).Take(10).ToArray());
+            jumps.OrderByDescending(x => x.AbsoluteChangePct).ThenBy(x => x.Date).Take(10).ToArray(),
+            series.Provenance);
     }
 
     private static int CountMissingWeekdays(DateOnly left, DateOnly right)

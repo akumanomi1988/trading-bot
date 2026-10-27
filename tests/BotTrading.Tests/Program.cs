@@ -682,6 +682,33 @@ Check("replay persisted ledger accepts completed buy/sell and rejected orders", 
     True(state.Orders[0].Status == "REJECTED" && state.Quantity == 0);
     PaperReplayEngine.ValidatePersisted(state, data);
 });
+
+Check("manual CSV import records explicit unknown adjustment provenance", () => {
+    var market = Csv("Date,Open,High,Low,Close\n2025-01-03,100,102,99,101\n");
+    True(market.Provenance.Source == "USER_CSV" && market.Provenance.AdjustmentStatus == "UNKNOWN");
+    True(market.Provenance.CurrencyCode is null && market.ToSummary().Provenance?.Source == "USER_CSV");
+});
+Check("historical source metadata is preserved through workspace roundtrip", () => {
+    var dir = Path.Combine(Path.GetTempPath(), "bt-source-" + Guid.NewGuid().ToString("N"));
+    try {
+        var input = Series("AA", 100m, 110m);
+        var market = new MarketSeries("AA", "Source test", input.Candles,
+            new PriceProvenance("STOOQ", "UNKNOWN", null, null));
+        var store = new WorkspaceStore(dir);
+        store.Save(new([market], new(10_000m, [], [])));
+        var loaded = store.Load().Series.Single();
+        True(loaded.Provenance.Source == "STOOQ" && loaded.Provenance.AdjustmentStatus == "UNKNOWN");
+        True(new DataQualityService().Analyze(loaded).Provenance?.Source == "STOOQ");
+    }
+    finally { if (Directory.Exists(dir)) Directory.Delete(dir, true); }
+});
+Check("historical provenance requires canonical data status and currencies", () => {
+    var candles = Series("AA", 100m).Candles;
+    Throws<ArgumentException>(() => new MarketSeries("AA", "", candles, new PriceProvenance("UNTRUSTED", "UNKNOWN")));
+    Throws<ArgumentException>(() => new MarketSeries("AA", "", candles, new PriceProvenance("USER_CSV", "ADJUSTED", "eur")));
+    Throws<ArgumentException>(() => new MarketSeries("AA", "", candles, new PriceProvenance("USER_CSV", "UNKNOWN", null, "NYSE;DROP")));
+    True(new MarketSeries("AA", "", candles).Provenance.Source == "UNSPECIFIED");
+});
 Check("DCA monthly contributions use first available monthly open", () => {
     var candles = new[] {
         new Candle(new DateOnly(2020, 1, 3), 10, 11, 9, 10, 100),

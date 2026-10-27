@@ -8,7 +8,7 @@ public static class CsvMarketData
 {
     public const int MaxFileBytes = 16 * 1024 * 1024;
 
-    public static MarketSeries Parse(Stream input, string symbol, string? name = null)
+    public static MarketSeries Parse(Stream input, string symbol, string? name = null, PriceProvenance? provenance = null)
     {
         if (!input.CanRead) throw new ArgumentException("Unreadable input.", nameof(input));
         using var reader = new StreamReader(input, new UTF8Encoding(false, true), detectEncodingFromByteOrderMarks: true, leaveOpen: true);
@@ -46,7 +46,8 @@ public static class CsvMarketData
                 throw new FormatException($"Malformed CSV at line {lineNumber}: {ex.Message}", ex);
             }
         }
-        return new MarketSeries(symbol, name ?? symbol, bars);
+        return new MarketSeries(symbol, name ?? symbol, bars,
+            provenance ?? new PriceProvenance("USER_CSV", "UNKNOWN"));
     }
 
     internal static int CountOutsideQuotes(string value, char separator)

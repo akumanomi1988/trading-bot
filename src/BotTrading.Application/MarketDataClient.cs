@@ -26,7 +26,7 @@ public sealed class MarketDataClient : IDisposable
             throw new InvalidDataException("Provider dataset exceeds 16 MiB.");
         await using var data = await response.Content.ReadAsStreamAsync(cancellationToken);
         await using var limited = new LimitedReadStream(data, CsvMarketData.MaxFileBytes);
-        return CsvMarketData.Parse(limited, symbol, symbol);
+        return CsvMarketData.Parse(limited, symbol, symbol, new PriceProvenance("STOOQ", "UNKNOWN"));
     }
 
     public void Dispose() => _http.Dispose();
