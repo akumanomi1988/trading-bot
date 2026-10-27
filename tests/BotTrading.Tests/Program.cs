@@ -709,6 +709,65 @@ Check("historical provenance requires canonical data status and currencies", () 
     Throws<ArgumentException>(() => new MarketSeries("AA", "", candles, new PriceProvenance("USER_CSV", "UNKNOWN", null, "NYSE;DROP")));
     True(new MarketSeries("AA", "", candles).Provenance.Source == "UNSPECIFIED");
 });
+
+Check("experiment dataset fingerprint is stable and changes with candles", () => {
+    var first = Series("AA", 100m, 110m, 90m, 95m);
+    var duplicate = Series("AA", 100m, 110m, 90m, 95m);
+    var changed = Series("AA", 100m, 110m, 90m, 96m);
+    True(ExperimentArchive.Fingerprint(first) == ExperimentArchive.Fingerprint(duplicate));
+    True(ExperimentArchive.Fingerprint(first) != ExperimentArchive.Fingerprint(changed));
+});
+Check("saved experiment is reproducible and survives workspace reload", () => {
+    var dir = Path.Combine(Path.GetTempPath(), "bt-experiments-" + Guid.NewGuid().ToString("N"));
+    try {
+        var store = new WorkspaceStore(dir);
+        store.Save(new([Series("AA", Enumerable.Repeat(100m, 60).ToArray())], new(10_000m, [], [])));
+        using (var work = new Workstation(store))
+        {
+            var result = work.SaveExperimentAsync("AA", 3, 8).GetAwaiter().GetResult();
+            True(result.DatasetMatchesCurrent && result.Experiment.Version == 1);
+            True(work.ListExperiments().Count == 1);
+        }
+        using (var loaded = new Workstation(store))
+        {
+            var list = loaded.ListExperiments();
+            True(list.Count == 1 && list[0].DatasetMatchesCurrent);
+            True(list[0].Experiment.ReturnPct == 0m);
+        }
+    }
+    finally { if (Directory.Exists(dir)) Directory.Delete(dir, true); }
+});
+Check("saved experiment detects data replacement and supports deletion", () => {
+    var dir = Path.Combine(Path.GetTempPath(), "bt-experiment-change-" + Guid.NewGuid().ToString("N"));
+    try {
+        var original = Series("AA", Enumerable.Repeat(100m, 60).ToArray());
+        var store = new WorkspaceStore(dir);
+        store.Save(new([original], new(10_000m, [], [])));
+        using var work = new Workstation(store);
+        var saved = work.SaveExperimentAsync("AA", 3, 8).GetAwaiter().GetResult();
+        var changed = Series("AA", Enumerable.Repeat(101m, 60).ToArray());
+        var csvFile = Path.Combine(dir, "changed.csv");
+        File.WriteAllLines(csvFile, new[]{"Date,Open,High,Low,Close,Volume"}
+            .Concat(changed.Candles.Select(c => $"{c.Date:yyyy-MM-dd},{c.Open},{c.High},{c.Low},{c.Close},100")));
+        work.ImportCsvAsync(csvFile, "AA").GetAwaiter().GetResult();
+        True(work.ListExperiments().Count == 1 && !work.ListExperiments()[0].DatasetMatchesCurrent);
+        work.DeleteExperimentAsync(saved.Experiment.Id).GetAwaiter().GetResult();
+        True(work.ListExperiments().Count == 0 && work.ListSeries().Count == 1);
+    }
+    finally { if (Directory.Exists(dir)) Directory.Delete(dir, true); }
+});
+Check("workspace refuses duplicate persisted experiment identifiers", () => {
+    var input = Series("AA", Enumerable.Repeat(100m, 60).ToArray());
+    var run = new Backtester().Run(input, new("AA", 3, 8));
+    var saved = ExperimentArchive.Capture(input, run);
+    var dir = Path.Combine(Path.GetTempPath(), "bt-experiment-invalid-" + Guid.NewGuid().ToString("N"));
+    try {
+        var store = new WorkspaceStore(dir);
+        store.Save(new([input], new(10_000m, [], []), null, null, [saved,saved]));
+        Throws<InvalidDataException>(() => store.Load());
+    }
+    finally { if (Directory.Exists(dir)) Directory.Delete(dir, true); }
+});
 Check("DCA monthly contributions use first available monthly open", () => {
     var candles = new[] {
         new Candle(new DateOnly(2020, 1, 3), 10, 11, 9, 10, 100),

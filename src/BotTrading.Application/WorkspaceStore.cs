@@ -65,7 +65,12 @@ public sealed class WorkspaceStore
         var savedNews = saved.News ?? [];
         if (savedNews.Count > NewsResearch.MaxItems || savedNews.Any(x => !NewsResearch.IsValid(x)))
             throw new InvalidDataException("Invalid news research state. No data was overwritten.");
-        return new(validated, saved.Paper, saved.Replay, savedNews);
+        var experiments = saved.Experiments ?? [];
+        if (experiments.Count > ExperimentArchive.MaxExperiments ||
+            experiments.Any(x => !ExperimentArchive.IsValid(x)) ||
+            experiments.Select(x => x.Id).Distinct(StringComparer.Ordinal).Count() != experiments.Count)
+            throw new InvalidDataException("Invalid saved strategy experiments. No data was overwritten.");
+        return new(validated, saved.Paper, saved.Replay, savedNews, experiments);
     }
 
     public void Save(Workspace workspace) => WriteAtomic(workspace, _path);
@@ -97,7 +102,7 @@ public sealed class WorkspaceStore
 }
 
 public sealed record Workspace(IReadOnlyList<MarketSeries> Series, PaperAccount Paper, ReplaySession? Replay = null,
-    IReadOnlyList<NewsEvent>? News = null);
+    IReadOnlyList<NewsEvent>? News = null, IReadOnlyList<SavedExperiment>? Experiments = null);
 
 public sealed class PaperBroker
 {

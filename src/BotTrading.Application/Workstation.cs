@@ -14,6 +14,7 @@ public sealed class Workstation : IDisposable
     private readonly PaperBroker _paper;
     private ReplaySession? _replay;
     private IReadOnlyList<NewsEvent> _news = [];
+    private IReadOnlyList<SavedExperiment> _experiments = [];
 
     public Workstation(WorkspaceStore? store = null)
     {
@@ -23,6 +24,7 @@ public sealed class Workstation : IDisposable
         _paper = new(state.Paper);
         _replay = state.Replay;
         _news = state.News ?? [];
+        _experiments = state.Experiments ?? [];
     }
 
     public async Task ExportBackupAsync(string destinationPath)
@@ -31,7 +33,7 @@ public sealed class Workstation : IDisposable
         try
         {
             Workspace state;
-            lock (_marketSync) state = new(_markets.ToArray(), _paper.State, _replay, _news);
+            lock (_marketSync) state = new(_markets.ToArray(), _paper.State, _replay, _news, _experiments);
             await Task.Run(() => _store.ExportBackup(state, destinationPath));
         }
         finally { _writeLock.Release(); }
@@ -49,7 +51,7 @@ public sealed class Workstation : IDisposable
                 lock (_marketSync)
                 {
                     // A deterministic rollback copy is saved before atomic replacement.
-                    _store.ExportBackup(new(_markets.ToArray(), _paper.State, _replay, _news),
+                    _store.ExportBackup(new(_markets.ToArray(), _paper.State, _replay, _news, _experiments),
                         _store.RecoveryBackupPath);
                     _store.Save(replacement);
                     _markets.Clear();
@@ -57,8 +59,66 @@ public sealed class Workstation : IDisposable
                     _paper.Reset(replacement.Paper);
                     _replay = replacement.Replay;
                     _news = replacement.News ?? [];
+                    _experiments = replacement.Experiments ?? [];
                 }
             });
+        }
+        finally { _writeLock.Release(); }
+    }
+
+    public IReadOnlyList<ExperimentView> ListExperiments()
+    {
+        lock (_marketSync)
+        {
+            var symbols = _experiments.Select(x => x.Symbol).ToHashSet(StringComparer.Ordinal);
+            var fingerprints = _markets.Where(x => symbols.Contains(x.Symbol))
+                .ToDictionary(x => x.Symbol, ExperimentArchive.Fingerprint, StringComparer.Ordinal);
+            return _experiments.OrderByDescending(x => x.CreatedAt)
+                .Select(x => new ExperimentView(x, fingerprints.TryGetValue(x.Symbol, out var hash) &&
+                    string.Equals(hash, x.DatasetSha256, StringComparison.Ordinal))).ToArray();
+        }
+    }
+
+    public async Task<ExperimentView> SaveExperimentAsync(string symbol, int fast, int slow)
+    {
+        await _writeLock.WaitAsync();
+        try
+        {
+            MarketSeries market;
+            lock (_marketSync) market = GetSeries(symbol);
+            // Perform the backtest before mutating persistence.
+            var experiment = await Task.Run(() =>
+                ExperimentArchive.Capture(market,
+                    _backtester.Run(market, new BacktestRequest(market.Symbol, fast, slow))));
+            lock (_marketSync)
+            {
+                if (_experiments.Count >= ExperimentArchive.MaxExperiments)
+                    throw new InvalidOperationException("The experiment archive is full (100 records).");
+                var previous = _experiments;
+                _experiments = _experiments.Append(experiment).ToArray();
+                try { Save(); }
+                catch { _experiments = previous; throw; }
+            }
+            return new ExperimentView(experiment, true);
+        }
+        finally { _writeLock.Release(); }
+    }
+
+    public async Task DeleteExperimentAsync(string id)
+    {
+        if (!Guid.TryParseExact(id, "N", out _))
+            throw new ArgumentException("Invalid experiment identifier.", nameof(id));
+        await _writeLock.WaitAsync();
+        try
+        {
+            lock (_marketSync)
+            {
+                if (!_experiments.Any(x => x.Id == id)) throw new KeyNotFoundException("Experiment not found.");
+                var previous = _experiments;
+                _experiments = _experiments.Where(x => x.Id != id).ToArray();
+                try { Save(); }
+                catch { _experiments = previous; throw; }
+            }
         }
         finally { _writeLock.Release(); }
     }
@@ -132,7 +192,7 @@ public sealed class Workstation : IDisposable
                 var next = _news.Concat(imported)
                     .GroupBy(x => (x.PublishedAt, x.Symbol, x.Headline, x.Source))
                     .Select(x => x.First()).OrderByDescending(x => x.PublishedAt).Take(NewsResearch.MaxItems).ToArray();
-                _store.Save(new(_markets.ToArray(), _paper.State, _replay, next));
+                _store.Save(new(_markets.ToArray(), _paper.State, _replay, next, _experiments));
                 _news = next;
                 return imported.Count;
             }
@@ -266,7 +326,7 @@ public sealed class Workstation : IDisposable
                         throw new InvalidOperationException("Imported data would rewrite the active replay history. Discard the replay first.");
                     PaperReplayEngine.ValidatePersisted(_replay, market);
                 }
-                _store.Save(new(next, _paper.State, _replay, _news));
+                _store.Save(new(next, _paper.State, _replay, _news, _experiments));
                 _markets.Clear();
                 _markets.AddRange(next);
                 return market.ToSummary();
@@ -289,7 +349,7 @@ public sealed class Workstation : IDisposable
 
     private void Save()
     {
-        lock (_marketSync) _store.Save(new(_markets.ToArray(), _paper.State, _replay, _news));
+        lock (_marketSync) _store.Save(new(_markets.ToArray(), _paper.State, _replay, _news, _experiments));
     }
     public void Dispose() { _feed.Dispose(); _writeLock.Dispose(); }
 }

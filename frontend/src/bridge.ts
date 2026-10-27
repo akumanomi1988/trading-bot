@@ -40,6 +40,11 @@ export type CostSensitivityReport = {
   scenarios: { feeBps: number; slippageBps: number; returnPct: number; benchmarkReturnPct: number;
     excessReturnPct: number; maxDrawdownPct: number; roundTrips: number; finalEquity: number }[];
 };
+export type ExperimentView = { datasetMatchesCurrent: boolean;
+  experiment: { version: number; id: string; createdAt: string; symbol: string;
+    fastPeriod: number; slowPeriod: number; initialCapital: number; feeBps: number; slippageBps: number;
+    datasetSha256: string; candleCount: number; firstDate: string; lastDate: string;
+    returnPct: number; benchmarkReturnPct: number; maxDrawdownPct: number; roundTrips: number } };
 export type ReplayOrder = { sequence: number; requestedAt: string; side: 'BUY' | 'SELL'; quantity: number;
   status: 'PENDING' | 'FILLED' | 'REJECTED' | 'CANCELLED' | 'EXPIRED'; orderType?: 'MARKET' | 'LIMIT' | 'STOP' | null; triggerPrice?: number | null; goodThrough?: string | null; executedAt?: string | null; price?: number | null; fee: number; reason?: string | null };
 export type ReplaySnapshot = { symbol: string; currentDate: string; finalDate: string; cash: number;

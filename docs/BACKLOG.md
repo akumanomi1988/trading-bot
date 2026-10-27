@@ -48,7 +48,8 @@
 - [ ] Perform reproducible 25 symbols × 100k candles memory, CPU and render profiling, with downsampling if required.
 
 ### Priority 1 — originally planned product scope
-- [ ] Versioned strategy experiments, additional signal types, risk constraints and reproducible comparison of runs.
+- [ ] Additional signal types, risk constraints and comparative multi-run analysis.
+- [x] Version-1 saved SMA experiment snapshots with SHA-256 dataset fingerprint, stale-data detection, 100-record cap, export/restore compatibility and persistence tests; CI validation required.
 - [x] Descriptive daily equity risk metrics (annualized volatility, Sharpe, invested-session exposure, worst session) integrated into backtest DTO, Windows UI and deterministic core assertions; CI validation required before acceptance.
 - [ ] Statistical robustness beyond 4 folds: perturbation maps, synthetic regimes and outlier handling.
 - [x] Six-level transaction-cost sensitivity comparing historical SMA returns against fee-adjusted passive benchmark, with C#/WebView2/React and regression tests; CI validation required.

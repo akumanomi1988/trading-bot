@@ -107,6 +107,9 @@ public sealed class WorkstationForm : Form
         {
             "app.info" => new { version = "0.1.0", mode = "offline-first", execution = "simulation-only", source = "WebView2 bridge" },
             "assets.list" => _app.ListSeries(),
+            "experiments.list" => _app.ListExperiments(),
+            "experiments.save" => await _app.SaveExperimentAsync(Str("symbol"), Int("fastPeriod"), Int("slowPeriod")),
+            "experiments.delete" => await DeleteExperimentAsync(Str("id")),
             "workspace.exportBackup" => await ExportBackupWithDialogAsync(),
             "workspace.restoreBackup" => await RestoreBackupWithDialogAsync(),
             "assets.series" => _app.GetSeries(Str("symbol")),
@@ -159,6 +162,12 @@ public sealed class WorkstationForm : Form
     private async Task<object?> ClearReplayAsync()
     {
         await _app.ClearReplayAsync();
+        return null;
+    }
+
+    private async Task<object?> DeleteExperimentAsync(string id)
+    {
+        await _app.DeleteExperimentAsync(id);
         return null;
     }
 
