@@ -7,7 +7,7 @@ public sealed record Fill(DateOnly Date, string Side, int Quantity, decimal Pric
 public sealed record BacktestResult(string Symbol, int FastPeriod, int SlowPeriod, decimal InitialCapital,
     decimal FinalEquity, decimal ReturnPct, decimal MaxDrawdownPct, int RoundTrips, decimal WinRatePct,
     IReadOnlyList<Fill> Fills, IReadOnlyList<EquityPoint> Equity,
-    decimal BenchmarkReturnPct = 0m, decimal ExcessReturnPct = 0m);
+    decimal BenchmarkReturnPct = 0m, decimal ExcessReturnPct = 0m, RiskMetrics? Risk = null);
 
 public sealed class Backtester
 {
@@ -30,7 +30,7 @@ public sealed class Backtester
         var fast = Indicators.Sma(bars, request.FastPeriod);
         var slow = Indicators.Sma(bars, request.SlowPeriod);
         decimal cash = request.InitialCapital, peak = cash, maxDrawdown = 0;
-        int shares = 0, wins = 0, completed = 0;
+        int shares = 0, wins = 0, completed = 0, investedSessions = 0;
         decimal entryCost = 0;
         var fills = new List<Fill>();
         var equity = new List<EquityPoint>();
@@ -60,6 +60,8 @@ public sealed class Backtester
                     Close(bars[i].Date, bars[i].Open, "SMA cross at previous close");
                 }
             }
+            // Count sessions with intraday exposure, including terminal liquidation day.
+            if (shares > 0) investedSessions++;
             if (i == bars.Count - 1 && shares > 0)
                 Close(bars[i].Date, bars[i].Close, "End-of-sample liquidation at close");
             var account = cash + shares * bars[i].Close;
@@ -86,7 +88,8 @@ public sealed class Backtester
             final, strategyReturn,
             decimal.Round(maxDrawdown, 2), completed,
             completed == 0 ? 0 : decimal.Round((decimal)wins / completed * 100, 2), fills, equity,
-            benchmarkReturn, strategyReturn - benchmarkReturn);
+            benchmarkReturn, strategyReturn - benchmarkReturn,
+            RiskAnalytics.Analyze(equity, investedSessions));
 
         void Close(DateOnly date, decimal rawPrice, string reason)
         {

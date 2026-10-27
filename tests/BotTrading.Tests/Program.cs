@@ -111,6 +111,52 @@ Check("backtest initial capital conserved less costs", () => {
     True(result.FinalEquity >= 0 && result.Fills.All(x=>x.Fee>=0));
     True(result.MaxDrawdownPct>=0 && result.MaxDrawdownPct<=100);
 });
+
+Check("risk analytics: flat curve has zero volatility and undefined Sharpe", () => {
+    var curve = Enumerable.Range(0, 40).Select(i =>
+        new EquityPoint(new DateOnly(2025, 1, 1).AddDays(i), 1000m)).ToArray();
+    var risk = RiskAnalytics.Analyze(curve, 0);
+    Nearly(risk.AnnualizedVolatilityPct!.Value, 0m);
+    True(risk.SharpeRatio is null && risk.ReturnObservations == 39);
+    Nearly(risk.ExposurePct, 0m);
+    Nearly(risk.WorstSessionPct!.Value, 0m);
+});
+Check("risk analytics: alternating session returns and exposure", () => {
+    var start = new DateOnly(2025, 1, 1);
+    var curve = new[] {
+        new EquityPoint(start, 100m),
+        new EquityPoint(start.AddDays(1), 110m),
+        new EquityPoint(start.AddDays(2), 99m)
+    };
+    var risk = RiskAnalytics.Analyze(curve, 2);
+    Nearly(risk.ExposurePct, 66.67m);
+    Nearly(risk.WorstSessionPct!.Value, -10m);
+    Nearly(risk.AnnualizedVolatilityPct!.Value, 224.50m, 0.02m);
+    Nearly(risk.SharpeRatio!.Value, 0m);
+    True(risk.ReturnObservations == 2);
+});
+Check("risk analytics: one observed session cannot determine volatility", () => {
+    var curve = new[] { new EquityPoint(new DateOnly(2025, 1, 1), 100m),
+        new EquityPoint(new DateOnly(2025, 1, 2), 101m) };
+    var risk = RiskAnalytics.Analyze(curve, 1);
+    True(risk.AnnualizedVolatilityPct is null && risk.SharpeRatio is null);
+    Nearly(risk.WorstSessionPct!.Value, 1m);
+    Nearly(risk.ExposurePct, 50m);
+});
+Check("risk analytics rejects broken equity sequences and invalid exposure", () => {
+    var date = new DateOnly(2025, 1, 1);
+    Throws<ArgumentException>(() => RiskAnalytics.Analyze([], 0));
+    Throws<ArgumentOutOfRangeException>(() => RiskAnalytics.Analyze([new(date, 100m)], 2));
+    Throws<ArgumentException>(() => RiskAnalytics.Analyze([new(date, 100m), new(date, 90m)], 1));
+    Throws<ArgumentException>(() => RiskAnalytics.Analyze([new(date, 100m), new(date.AddDays(1), 0m)], 1));
+});
+Check("backtest integrates risk metrics with exposure and no-trade curve", () => {
+    var result = new Backtester().Run(Series("AA", Enumerable.Repeat(10m, 40).ToArray()), new("AA", 3, 7));
+    True(result.Risk is not null);
+    Nearly(result.Risk!.ExposurePct, 0m);
+    Nearly(result.Risk!.AnnualizedVolatilityPct!.Value, 0m);
+    True(result.Risk!.SharpeRatio is null);
+});
 Check("paper broker buy+sell and exact cash", () => {
     var market = Series("AA", 100);
     var paper = new PaperBroker(new(1000, [], []));

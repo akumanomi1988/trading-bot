@@ -46,7 +46,8 @@
 - [ ] Perform reproducible 25 symbols × 100k candles memory, CPU and render profiling, with downsampling if required.
 
 ### Priority 1 — originally planned product scope
-- [ ] Versioned strategy experiments, additional signal types, risk constraints, volatility/Sharpe/exposure and reproducible comparison of runs.
+- [ ] Versioned strategy experiments, additional signal types, risk constraints and reproducible comparison of runs.
+- [x] Descriptive daily equity risk metrics (annualized volatility, Sharpe, invested-session exposure, worst session) integrated into backtest DTO, Windows UI and deterministic core assertions; CI validation required before acceptance.
 - [ ] Statistical robustness beyond 4 folds: perturbation maps, transaction-cost sensitivity, synthetic regimes and outlier handling.
 - [ ] Portfolio-level multi-asset backtesting, orders cancellation/expiration and trade-level cash/position reconciliation.
 - [ ] News: legal free RSS/API source onboarding with attribution and timestamp integrity, dedupe, historical timestamp alignment and optional strictly offline AI analysis.

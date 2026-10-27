@@ -8,11 +8,13 @@ export type DataQualityReport = { symbol: string; first: string; last: string; c
   largePriceMoveCount: number; largestCalendarGaps: { after: string; before: string; missingWeekdays: number }[];
   largestPriceMoves: { date: string; previousClose: number; close: number; absoluteChangePct: number }[] };
 export type Fill = { date: string; side: 'BUY' | 'SELL'; quantity: number; price: number; fee: number; reason: string };
+export type RiskMetrics = { annualizedVolatilityPct: number | null; sharpeRatio: number | null;
+  exposurePct: number; worstSessionPct: number | null; returnObservations: number };
 export type BacktestResult = {
   symbol: string; fastPeriod: number; slowPeriod: number; initialCapital: number;
   finalEquity: number; returnPct: number; maxDrawdownPct: number; roundTrips: number;
   winRatePct: number; fills: Fill[]; equity: { date: string; equity: number }[];
-  benchmarkReturnPct: number; excessReturnPct: number;
+  benchmarkReturnPct: number; excessReturnPct: number; risk: RiskMetrics | null;
 };
 export type PaperPosition = { symbol: string; quantity: number; averagePrice: number; markPrice: number; marketValue: number; unrealizedPnL: number };
 export type PaperSnapshot = {
