@@ -1,0 +1,14 @@
+**/bin/
+**/obj/
+**/node_modules/
+**/dist/
+**/coverage/
+**/TestResults/
+.vs/
+*.user
+*.suo
+.env
+*.local
+
+.test-build/
+artifacts/

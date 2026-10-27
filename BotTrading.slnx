@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/BotTrading.Core/BotTrading.Core.csproj" />
+    <Project Path="src/BotTrading.Application/BotTrading.Application.csproj" />
+    <Project Path="src/BotTrading.Desktop/BotTrading.Desktop.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/BotTrading.Tests/BotTrading.Tests.csproj" />
+  </Folder>
+</Solution>

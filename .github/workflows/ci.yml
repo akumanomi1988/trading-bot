@@ -1,0 +1,48 @@
+name: Windows build and regression tests
+
+on:
+  push:
+    branches: [dev, main]
+  pull_request:
+    branches: [dev, main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-acceptance:
+    name: React and .NET native compile
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Install pinned frontend dependencies
+        working-directory: frontend
+        run: npm ci --no-audit --no-fund
+      - name: Test frontend bridge and chart math
+        working-directory: frontend
+        run: npm test
+      - name: Typecheck React app
+        working-directory: frontend
+        run: npm run typecheck
+      - name: Build bundled frontend
+        working-directory: frontend
+        run: npm run build
+      - name: Run core and application tests
+        run: dotnet run --project tests/BotTrading.Tests/BotTrading.Tests.csproj -c Release
+      - name: Publish native Windows executable
+        run: dotnet publish src/BotTrading.Desktop/BotTrading.Desktop.csproj -c Release -r win-x64 --self-contained false -o artifacts/BotTrading
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BotTrading-win-x64-unsigned
+          path: artifacts/BotTrading
+          retention-days: 7
