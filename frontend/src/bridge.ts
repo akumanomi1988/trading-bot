@@ -13,8 +13,9 @@ export type DataQualityReport = { symbol: string; first: string; last: string; c
 export type Fill = { date: string; side: 'BUY' | 'SELL'; quantity: number; price: number; fee: number; reason: string };
 export type RiskMetrics = { annualizedVolatilityPct: number | null; sharpeRatio: number | null;
   exposurePct: number; worstSessionPct: number | null; returnObservations: number };
+export type StrategyKind = 'SMA' | 'EMA';
 export type BacktestResult = {
-  symbol: string; fastPeriod: number; slowPeriod: number; initialCapital: number;
+  symbol: string; fastPeriod: number; slowPeriod: number; initialCapital: number; strategyKind: StrategyKind;
   finalEquity: number; returnPct: number; maxDrawdownPct: number; roundTrips: number;
   winRatePct: number; fills: Fill[]; equity: { date: string; equity: number }[];
   benchmarkReturnPct: number; excessReturnPct: number; risk: RiskMetrics | null;
@@ -26,23 +27,24 @@ export type PaperSnapshot = {
 };
 export type ValidationReport = {
   symbol: string; trainStart: string; trainEnd: string; testStart: string; testEnd: string;
-  fastPeriod: number; slowPeriod: number; training: BacktestResult; outOfSample: BacktestResult;
+  fastPeriod: number; slowPeriod: number; strategyKind: StrategyKind;
+  training: BacktestResult; outOfSample: BacktestResult;
 };
 export type WalkForwardReport = {
-  symbol: string; foldCount: number; positiveFoldPct: number; medianTestReturnPct: number;
+  symbol: string; foldCount: number; positiveFoldPct: number; medianTestReturnPct: number; strategyKind: StrategyKind;
   folds: { number: number; trainingStart: string; trainingEnd: string; testStart: string;
     testEnd: string; fastPeriod: number; slowPeriod: number; trainingReturnPct: number;
     testReturnPct: number; testMaxDrawdownPct: number; testRoundTrips: number }[];
 };
 export type CostSensitivityReport = {
-  symbol: string; fastPeriod: number; slowPeriod: number; initialCapital: number;
+  symbol: string; fastPeriod: number; slowPeriod: number; initialCapital: number; strategyKind: StrategyKind;
   bestReturnPct: number; worstReturnPct: number; returnRangePctPoints: number;
   scenarios: { feeBps: number; slippageBps: number; returnPct: number; benchmarkReturnPct: number;
     excessReturnPct: number; maxDrawdownPct: number; roundTrips: number; finalEquity: number }[];
 };
 export type ExperimentView = { datasetMatchesCurrent: boolean;
   experiment: { version: number; id: string; createdAt: string; symbol: string;
-    fastPeriod: number; slowPeriod: number; initialCapital: number; feeBps: number; slippageBps: number;
+    fastPeriod: number; slowPeriod: number; strategyKind?: StrategyKind; initialCapital: number; feeBps: number; slippageBps: number;
     datasetSha256: string; candleCount: number; firstDate: string; lastDate: string;
     returnPct: number; benchmarkReturnPct: number; maxDrawdownPct: number; roundTrips: number } };
 export type ReplayOrder = { sequence: number; requestedAt: string; side: 'BUY' | 'SELL'; quantity: number;

@@ -27,6 +27,8 @@ This protocol records tests that cannot be executed in the available Linux envir
 
 23. Ledger integrity: execute multiple historical replay buys and a sell, close and reopen the application. Cash, holdings, average cost and fills must be unchanged. Tamper separately with a saved fill price, its fee, cash and position quantity in a copy of the workspace JSON; loading must reject every manipulated state without rewriting the invalid file.
 
+25. SMA/EMA model selection: on the Strategy tab switch to EMA; execute a backtest, parameter optimization, 70/30 holdout, four-fold walk-forward and cost stress. Every result must retain the EMA label. Verify fills use EMA cross signals from the previous close and the next session open. Save and reload an EMA experiment. Existing v1 experiments lacking a strategyKind remain SMA. Switching strategies must clear stale displayed computations.
+
 24. Saved experiments: import an instrument with 60+ candles, set SMA 3/8, save a strategy experiment, restart and verify the stored return, parameters and fingerprint match and are marked current. Reimport the same ticker with different OHLC history; the stored experiment must remain but show changed/absent dataset. Delete the saved experiment and verify live series and paper balances are unchanged. Export/restore a backup containing experiments and confirm they survive.
 
 Never use a live brokerage account, production secrets or real money for acceptance.

@@ -1,7 +1,7 @@
 # BotTrading — accepted scope, engineering backlog and continuation checkpoint
 
-**Last engineering checkpoint:** 2026-10-27. **Repository:** `akumanomi1988/trading-bot`; **branch:** `dev`.
-**Most recent verified Windows CI baseline:** `5a59fe33` — 53/53 C# checks, 11/11 TypeScript checks, React typecheck/build and `dotnet publish` win-x64 all PASS. Test evidence: https://github.com/akumanomi1988/trading-bot/actions/runs/40467016898
+**Last engineering checkpoint:** 2026-10-28. **Repository:** `akumanomi1988/trading-bot`; **branch:** `dev`.
+**Most recent verified Windows CI baseline before this change:** `afbf94bc` — successful React and .NET Windows CI run https://github.com/akumanomi1988/trading-bot/actions/runs/40577874854. Current EMA changes require a new successful CI run.
 
 ## Definition of status
 
@@ -48,7 +48,8 @@
 - [ ] Perform reproducible 25 symbols × 100k candles memory, CPU and render profiling, with downsampling if required.
 
 ### Priority 1 — originally planned product scope
-- [ ] Additional signal types, risk constraints and comparative multi-run analysis.
+- [ ] Risk constraints and comparative multi-run analysis.
+- [x] EMA crossover integrated as a second signal family alongside SMA in backtesting, parameter optimization, out-of-sample and expanding walk-forward validation, cost stress, native bridge, frontend and persistent experiment snapshots. Pending fresh CI and native UI acceptance.
 - [x] Version-1 saved SMA experiment snapshots with SHA-256 dataset fingerprint, stale-data detection, 100-record cap, export/restore compatibility and persistence tests; CI validation required.
 - [x] Descriptive daily equity risk metrics (annualized volatility, Sharpe, invested-session exposure, worst session) integrated into backtest DTO, Windows UI and deterministic core assertions; CI validation required before acceptance.
 - [ ] Statistical robustness beyond 4 folds: perturbation maps, synthetic regimes and outlier handling.
