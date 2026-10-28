@@ -39,7 +39,8 @@
 
 ### Priority 0 — release blockers and data correctness
 - [ ] Execute automated Windows WebView2 smoke tests and interactive E2E to the fullest feasible degree (source origin, permissions, navigation, native dialogs, keyboard focus, persistence).
-- [ ] Verify real Stooq fetch against provider availability; maintain honest attribution and import failure recovery. Add legally usable free fallback if the data contract is adequate.
+- [ ] Verify real Stooq fetch against current provider availability and terms; investigate a legally usable free fallback only if the data contract is adequate.
+- [x] Deterministic HTTP contract tests for Stooq origin, redirects, rate limiting, oversized payloads, invalid symbols and malformed bodies; no provider calls in automated tests. Pending Windows CI.
 - [ ] Model market calendars and corporate actions; prevent split-induced false strategy performance and verify adjusted/raw normalization.
 - [x] Persist validated historical source/provenance (user CSV vs Stooq, UNKNOWN adjustment, unknown currency/venue); surface uncertainty in data-quality UI without guessing ticker denomination. CI validation required.
 - [ ] Track instrument currency and trading venue; reject cross-currency aggregates until FX modeling is available.

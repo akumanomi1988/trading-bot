@@ -6,9 +6,14 @@ namespace BotTrading.Application;
 public sealed class MarketDataClient : IDisposable
 {
     private readonly HttpClient _http;
-    public MarketDataClient()
+    // A custom handler supports offline deterministic HTTP acceptance tests; production
+    // uses a fixed HTTPS endpoint and disables redirect following.
+    public MarketDataClient(HttpMessageHandler? handler = null)
     {
-        _http = new(new HttpClientHandler { AllowAutoRedirect = false, AutomaticDecompression = DecompressionMethods.GZip });
+        _http = new(handler ?? new HttpClientHandler {
+            AllowAutoRedirect = false,
+            AutomaticDecompression = DecompressionMethods.GZip
+        }, disposeHandler: true);
         _http.Timeout = TimeSpan.FromSeconds(18);
         _http.DefaultRequestHeaders.UserAgent.ParseAdd("BotTrading/0.1 historical-data-research");
     }
@@ -21,7 +26,10 @@ public sealed class MarketDataClient : IDisposable
         symbol = symbol.Trim().ToLowerInvariant();
         using var response = await _http.GetAsync($"https://stooq.com/q/d/l/?s={Uri.EscapeDataString(symbol)}&i=d",
             HttpCompletionOption.ResponseHeadersRead, cancellationToken);
-        if (response.StatusCode != HttpStatusCode.OK) throw new HttpRequestException($"Provider returned {(int)response.StatusCode}.");
+        if (response.StatusCode == HttpStatusCode.TooManyRequests)
+            throw new HttpRequestException("Stooq rate-limited the historical download (429). Wait before retrying or import a local CSV.");
+        if (response.StatusCode != HttpStatusCode.OK)
+            throw new HttpRequestException($"Historical provider returned HTTP {(int)response.StatusCode}. The local workspace was not changed.");
         if (response.Content.Headers.ContentLength is > CsvMarketData.MaxFileBytes)
             throw new InvalidDataException("Provider dataset exceeds 16 MiB.");
         await using var data = await response.Content.ReadAsStreamAsync(cancellationToken);

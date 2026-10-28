@@ -25,7 +25,7 @@ frontend [React 19 / Vite / TypeScript]
   └── WebView2 postMessage -> .NET dispatcher -> structured result
 ```
 
-The shell maps bundled `frontend/dist` to a local virtual HTTPS hostname; business methods are invoked through `window.chrome.webview.postMessage`. Remote resources are not required by the built UI. Stooq is a **free external provider for historical CSV only**, subject to provider availability and restrictions; data is not guaranteed to be current or accurate.
+The shell maps bundled `frontend/dist` to a local virtual HTTPS hostname; business methods are invoked through `window.chrome.webview.postMessage`. Remote resources are not required by the built UI. Stooq is a **free external provider for historical CSV only**, subject to provider availability and restrictions; data is not guaranteed to be current or accurate. HTTP contract tests exercise a fixed HTTPS origin, disabled redirects, 429 responses, size limits and malformed CSV without contacting Stooq; live-provider acceptance remains separate.
 
 ## Functional paths present in source
 

@@ -846,6 +846,70 @@ Check("workstation compares only valid saved experiment IDs", () => {
     }
     finally { if (Directory.Exists(dir)) Directory.Delete(dir, true); }
 });
+
+Check("historical HTTP import only contacts fixed Stooq HTTPS origin", () => {
+    Uri? actual = null;
+    using var source = new MarketDataClient(new StubMarketHandler(request => {
+        actual = request.RequestUri;
+        return new System.Net.Http.HttpResponseMessage(System.Net.HttpStatusCode.OK)
+        {
+            Content = new StringContent("Date,Open,High,Low,Close,Volume\n2025-01-01,100,102,99,101,900\n")
+        };
+    }));
+    var market = source.DownloadStooqAsync("AAPL.US").GetAwaiter().GetResult();
+    True(actual is not null && actual.Scheme == "https" && actual.Host == "stooq.com");
+    True(actual!.AbsolutePath == "/q/d/l/" && actual.Query.Contains("s=aapl.us"));
+    True(market.Symbol == "AAPL.US" && market.Provenance.Source == "STOOQ");
+    True(market.Provenance.AdjustmentStatus == "UNKNOWN" && market.Candles.Count == 1);
+});
+Check("historical HTTP import rejects redirects without following external hosts", () => {
+    int calls = 0;
+    using var source = new MarketDataClient(new StubMarketHandler(_ => {
+        calls++;
+        return new System.Net.Http.HttpResponseMessage(System.Net.HttpStatusCode.Redirect)
+        {
+            Headers = { Location = new Uri("https://untrusted.example.com/data.csv") }
+        };
+    }));
+    Throws<HttpRequestException>(() => source.DownloadStooqAsync("AA.US").GetAwaiter().GetResult());
+    True(calls == 1, "The redirect must not cause another outbound request.");
+});
+Check("historical HTTP provider limit does not trigger repeated requests", () => {
+    int calls = 0;
+    using var source = new MarketDataClient(new StubMarketHandler(_ => {
+        calls++;
+        return new System.Net.Http.HttpResponseMessage(System.Net.HttpStatusCode.TooManyRequests)
+        {
+            Content = new StringContent("Slow down")
+        };
+    }));
+    Throws<HttpRequestException>(() => source.DownloadStooqAsync("AA.US").GetAwaiter().GetResult());
+    True(calls == 1);
+});
+Check("historical HTTP import enforces declared payload bound", () => {
+    using var source = new MarketDataClient(new StubMarketHandler(_ => {
+        var reply = new System.Net.Http.HttpResponseMessage(System.Net.HttpStatusCode.OK)
+        {
+            Content = new StringContent("Date,Open,High,Low,Close\n2025-01-01,1,2,1,1\n")
+        };
+        reply.Content.Headers.ContentLength = CsvMarketData.MaxFileBytes + 1;
+        return reply;
+    }));
+    Throws<InvalidDataException>(() => source.DownloadStooqAsync("AA.US").GetAwaiter().GetResult());
+});
+Check("historical HTTP import rejects unusable provider body and invalid ticker", () => {
+    int calls = 0;
+    using var source = new MarketDataClient(new StubMarketHandler(_ => {
+        calls++;
+        return new System.Net.Http.HttpResponseMessage(System.Net.HttpStatusCode.OK)
+        {
+            Content = new StringContent("No data")
+        };
+    }));
+    Throws<FormatException>(() => source.DownloadStooqAsync("AA.US").GetAwaiter().GetResult());
+    Throws<ArgumentException>(() => source.DownloadStooqAsync("https://bad.example").GetAwaiter().GetResult());
+    True(calls == 1, "Invalid tickers must be rejected before the HTTP request.");
+});
 Check("DCA monthly contributions use first available monthly open", () => {
     var candles = new[] {
         new Candle(new DateOnly(2020, 1, 3), 10, 11, 9, 10, 100),
@@ -890,3 +954,12 @@ Check("DCA refuses to fabricate earlier market history", () => {
 });
 Console.WriteLine($"\nTotal: {pass} passed, {fail} failed");
 Environment.ExitCode = fail == 0 ? 0 : 1;
+
+sealed class StubMarketHandler(Func<HttpRequestMessage, HttpResponseMessage> respond) : HttpMessageHandler
+{
+    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(respond(request));
+    }
+}
