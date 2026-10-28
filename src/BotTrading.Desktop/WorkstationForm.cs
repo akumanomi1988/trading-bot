@@ -94,7 +94,8 @@ public sealed class WorkstationForm : Form
             // A compiled bundle alone does not satisfy this check.
             const string script = "(function() { return location.origin === 'https://bottrading.local' && " +
                 "Boolean(document.querySelector('.data-toolbar')) && " +
-                "Boolean(document.querySelector('.empty-state')) && " +
+                "Boolean(document.querySelector('.dual-cards')) && " +
+                "document.body.textContent.includes('SIM.A') && " +
                 "Boolean(document.querySelector('h1')?.textContent?.includes('Explorador de mercado')) && " +
                 "!document.querySelector('.error-banner'); })()";
             bool ready = false;
@@ -134,12 +135,29 @@ public sealed class WorkstationForm : Form
             await WaitForScreenAsync(
                 "document.querySelector('select[aria-label=\\\"Tipo de media de estrategia\\\"]')?.value === 'EMA'",
                 "EMA selection");
+            await core.ExecuteScriptAsync(
+                "Array.from(document.querySelectorAll('button')).find(b=>b.textContent?.includes('Ejecutar backtest'))?.click();");
+            await WaitForScreenAsync(
+                "Boolean(document.querySelector('.results-panel .kpi-grid')) && " +
+                "document.querySelector('.results-panel')?.textContent?.includes('EMA') && " +
+                "document.querySelector('.results-panel')?.textContent?.includes('CAPITAL FINAL') && " +
+                "!document.querySelector('.error-banner')",
+                "EMA backtest on synthetic 420-candle history");
             await core.ExecuteScriptAsync("document.querySelector('button[title=\\\"Paper Trading\\\"]')?.click();");
             await WaitForScreenAsync(
                 "document.querySelector('h1')?.textContent?.includes('Cartera simulada') && " +
                 "Boolean(document.querySelector('.positions')) && !document.querySelector('.error-banner')",
                 "paper portfolio", () => _smokePaperReceived);
-
+            await core.ExecuteScriptAsync(
+                "Array.from(document.querySelectorAll('button')).find(b=>b.textContent?.includes('Comprar (simulado)'))?.click();");
+            await WaitForScreenAsync(
+                "document.querySelector('.positions')?.textContent?.includes('SIM.A') && " +
+                "document.querySelector('.positions')?.textContent?.includes('1 uds.') && " +
+                "!document.querySelector('.error-banner')",
+                "simulated buy and portfolio display");
+            var positions = _app.PaperSnapshot().Positions;
+            if (positions.Count != 1 || positions[0].Quantity != 1 || positions[0].Symbol != "SIM.A")
+                throw new InvalidOperationException("Native simulated portfolio did not persist the UI buy.");
             var screenshot = Path.Combine(AppContext.BaseDirectory, "webview2-smoke.png");
             await using (var output = File.Create(screenshot))
                 await core.CapturePreviewAsync(CoreWebView2CapturePreviewImageFormat.Png, output);
