@@ -11,10 +11,14 @@ public sealed class WorkstationForm : Form
     private readonly Workstation _app;
     private readonly WebView2 _browser;
     private readonly JsonSerializerOptions _json = new(JsonSerializerDefaults.Web);
+    private readonly bool _smokeTest;
+    private bool _smokeAppInfoReceived;
+    private bool _smokeAssetsReceived;
 
-    public WorkstationForm(Workstation app)
+    public WorkstationForm(Workstation app, bool smokeTest = false)
     {
         _app = app;
+        _smokeTest = smokeTest;
         Text = "BotTrading · Quant Workstation";
         MinimumSize = new(940, 650);
         StartPosition = FormStartPosition.CenterScreen;
@@ -29,8 +33,10 @@ public sealed class WorkstationForm : Form
     {
         try
         {
-            string userData = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "BotTrading", "WebView2");
+            string userData = _smokeTest
+                ? Path.Combine(Path.GetTempPath(), $"BotTrading-CI-WebView-{Environment.ProcessId}")
+                : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "BotTrading", "WebView2");
             var environment = await CoreWebView2Environment.CreateAsync(userDataFolder: userData);
             await _browser.EnsureCoreWebView2Async(environment);
             var core = _browser.CoreWebView2;
@@ -65,11 +71,60 @@ public sealed class WorkstationForm : Form
                 core.SetVirtualHostNameToFolderMapping("bottrading.local", bundle, CoreWebView2HostResourceAccessKind.DenyCors);
                 core.Navigate(AppOrigin + "/index.html");
             }
+            if (_smokeTest) _ = RunWindowsSmokeAsync();
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"WebView2 initialization failed: {ex.Message}", "BotTrading", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            if (_smokeTest)
+            {
+                Environment.ExitCode = 1;
+                System.Diagnostics.Trace.WriteLine(ex);
+            }
+            else MessageBox.Show($"WebView2 initialization failed: {ex.Message}", "BotTrading", MessageBoxButtons.OK, MessageBoxIcon.Error);
             Close();
+        }
+    }
+
+    private async Task RunWindowsSmokeAsync()
+    {
+        try
+        {
+            // Assert real WinForms -> WebView2 -> bundled React -> native bridge roundtrip.
+            // A compiled bundle alone does not satisfy this check.
+            const string script = "(function() { return location.origin === 'https://bottrading.local' && " +
+                "Boolean(document.querySelector('.data-toolbar')) && " +
+                "Boolean(document.querySelector('.empty-state')) && " +
+                "Boolean(document.querySelector('h1')?.textContent?.includes('Explorador de mercado')) && " +
+                "!document.querySelector('.error-banner'); })()";
+            bool ready = false;
+            for (int attempt = 0; attempt < 80; attempt++)
+            {
+                await Task.Delay(250);
+                if (_browser.CoreWebView2 is null || IsDisposed) break;
+                string response = await _browser.CoreWebView2.ExecuteScriptAsync(script);
+                if (response == "true" && _smokeAppInfoReceived && _smokeAssetsReceived)
+                {
+                    ready = true;
+                    break;
+                }
+            }
+            if (!ready) throw new InvalidOperationException("React or the WebView2 bridge failed to initialize before the smoke timeout.");
+            var screenshot = Path.Combine(AppContext.BaseDirectory, "webview2-smoke.png");
+            await using (var output = File.Create(screenshot))
+                await _browser.CoreWebView2.CapturePreviewAsync(CoreWebView2CapturePreviewImageFormat.Png, output);
+            if (new FileInfo(screenshot).Length < 1_000)
+                throw new InvalidDataException("WebView2 produced an invalid smoke screenshot.");
+            System.Diagnostics.Trace.WriteLine("BotTrading Windows WebView2 smoke PASSED.");
+            Environment.ExitCode = 0;
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Trace.WriteLine($"BotTrading smoke FAILED: {ex}");
+            Environment.ExitCode = 1;
+        }
+        finally
+        {
+            if (!IsDisposed && IsHandleCreated) BeginInvoke(new Action(Close));
         }
     }
 
@@ -92,6 +147,8 @@ public sealed class WorkstationForm : Form
             var args = root.TryGetProperty("payload", out var payload) ? payload : default;
             object? result = await ExecuteAsync(action, args);
             Respond(id, true, result, null);
+            if (_smokeTest && action == "app.info") _smokeAppInfoReceived = true;
+            if (_smokeTest && action == "assets.list") _smokeAssetsReceived = true;
         }
         catch (Exception ex)
         {

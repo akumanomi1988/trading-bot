@@ -41,6 +41,23 @@ jobs:
         run: dotnet run --project tests/BotTrading.Tests/BotTrading.Tests.csproj -c Release
       - name: Publish native Windows executable
         run: dotnet publish src/BotTrading.Desktop/BotTrading.Desktop.csproj -c Release -r win-x64 --self-contained false -o artifacts/BotTrading
+      - name: Smoke test native WebView2 host with bundled React
+        shell: pwsh
+        run: |
+          $env:BOTTRADING_SMOKE_TEST = '1'
+          $exe = (Resolve-Path 'artifacts/BotTrading/BotTrading.Desktop.exe').Path
+          $proc = Start-Process -FilePath $exe -PassThru
+          try {
+            Wait-Process -Id $proc.Id -Timeout 90 -ErrorAction Stop
+            $proc.Refresh()
+            if ($proc.ExitCode -ne 0) { throw "WebView2 smoke failed: exit $($proc.ExitCode)" }
+            if (-not (Test-Path 'artifacts/BotTrading/webview2-smoke.png')) {
+              throw 'WebView2 smoke image not produced'
+            }
+          }
+          finally {
+            if (-not $proc.HasExited) { Stop-Process -Id $proc.Id -Force }
+          }
       - uses: actions/upload-artifact@v4
         with:
           name: BotTrading-win-x64-unsigned

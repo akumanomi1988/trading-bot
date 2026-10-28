@@ -38,7 +38,8 @@
 ## Prioritized remaining engineering work
 
 ### Priority 0 — release blockers and data correctness
-- [ ] Execute automated Windows WebView2 smoke tests and interactive E2E to the fullest feasible degree (source origin, permissions, navigation, native dialogs, keyboard focus, persistence).
+- [ ] Extend Windows WebView2 E2E beyond startup (permissions, disallowed navigation, dialogs, keyboard focus, replay and persistence).
+- [x] CI opt-in native Windows WebView2 smoke: start the published WinForms executable with isolated local workspace/profile; verify real bundled React DOM, correct virtual origin, both .NET bridge bootstrap commands, screenshot and clean exit. Pending CI validation on runner.
 - [ ] Verify real Stooq fetch against current provider availability and terms; investigate a legally usable free fallback only if the data contract is adequate.
 - [x] Deterministic HTTP contract tests for Stooq origin, redirects, rate limiting, oversized payloads, invalid symbols and malformed bodies; no provider calls in automated tests. Pending Windows CI.
 - [ ] Model market calendars and corporate actions; prevent split-induced false strategy performance and verify adjusted/raw normalization.
