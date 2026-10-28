@@ -1,7 +1,7 @@
 # BotTrading — accepted scope, engineering backlog and continuation checkpoint
 
 **Last engineering checkpoint:** 2026-10-28. **Repository:** `akumanomi1988/trading-bot`; **branch:** `dev`.
-**Latest verified Windows CI:** `02c931ca` — 106/106 C# regression checks, 14/14 TypeScript checks, React typecheck/build, `dotnet publish` win-x64, and actual native WebView2 E2E (two synthetic assets, EMA strategy/backtest, simulated paper buy and PNG capture) all PASS: https://github.com/akumanomi1988/trading-bot/actions/runs/40781777398.
+**Latest verified Windows CI:** `d6cde5ef` — 106/106 C# assertions, 14/14 TypeScript tests, React typecheck/build, Windows native publish and real WebView2 E2E (2 synthetic assets, EMA backtest, simulated BUY, captured PNG, denied cross-origin navigation) all PASS: https://github.com/akumanomi1988/trading-bot/actions/runs/40782127144.
 
 ## Definition of status
 
@@ -39,16 +39,16 @@
 
 ### Priority 0 — release blockers and data correctness
 - [ ] Extend Windows WebView2 E2E with permission denial, native dialogs, keyboard focus and restart persistence.
-- [x] Added real external-origin navigation attempt in the Windows WebView2 smoke, asserting the host cancels the navigation and React remains on the allowed virtual origin. Needs new CI acceptance.
+- [x] Actual external-origin navigation attempt in Windows WebView2 E2E verifies native cancellation and unchanged app origin; PASS in CI #40782127144.
 - [x] End-to-end simulated market fixture (two independent 420-candle symbols), React compare view, UI-selected EMA backtest, UI simulated buy and C# paper-account reconciliation verified in native Windows CI #40781777398; no broker access or production data.
 - [x] Native Windows WebView2 smoke: isolated workspace/profile, actual bundled React DOM, correct virtual origin, bridge bootstrap messages, PNG preview and clean exit verified on CI #40780136513. Expanded smoke includes strategy tab, EMA selection and paper portfolio; CI #40780519212 PASS.
 - [ ] Verify real Stooq fetch against current provider availability and terms; investigate a legally usable free fallback only if the data contract is adequate.
-- [x] Deterministic HTTP contract tests for Stooq origin, redirects, rate limiting, oversized payloads, invalid symbols and malformed bodies; no provider calls in automated tests. Pending Windows CI.
+- [x] Deterministic HTTP contract tests for Stooq origin, redirects, rate limiting, oversized payloads, invalid symbols and malformed bodies; no provider calls in automated tests. Automated Windows CI PASS.
 - [ ] Model market calendars and corporate actions; prevent split-induced false strategy performance and verify adjusted/raw normalization.
 - [x] Persist validated historical source/provenance (user CSV vs Stooq, UNKNOWN adjustment, unknown currency/venue); surface uncertainty in data-quality UI without guessing ticker denomination. Automated CI verified; native manual acceptance still pending.
 - [ ] Track instrument currency and trading venue; reject cross-currency aggregates until FX modeling is available.
 - [ ] Strengthen workspace interruption and fault injection further.
-- [x] Workspace schema v1 gate rejects unknown future schemas without rewriting data; legacy v1 experiments with missing strategy kind are normalized to SMA on read and preserved by the next atomic save. CI validation required.
+- [x] Workspace schema v1 gate rejects unknown future schemas without rewriting data; legacy v1 experiments with missing strategy kind are normalized to SMA on read and preserved by the next atomic save. Automated CI PASS; native manual QA remains.
 - [x] Native JSON backup/export and validated atomic restore, with pre-restore recovery copy and corruption tests; Windows UI acceptance remains pending.
 - [ ] Perform reproducible 25 symbols × 100k candles memory, CPU and render profiling; optimize WebView2 full-series IPC/retained JS memory before acceptance.
 - [x] Frontend bounded O(n) extrema-preserving chart rendering (maximum 1,200 SVG vertices), constant-memory shared min/max, original index/date X alignment and deterministic 100k-point fixtures, CI #40781565753 PASS; does not solve full-history IPC memory overhead.
@@ -58,14 +58,14 @@
 - [x] Configurable 1–100% capital-allocation limit per SMA/EMA entry, enforced on the next-open execution budget and threaded through optimizer, chronological validation, cost sensitivity and saved-experiment comparison. Windows CI verified (latest #40781777398).
 - [x] Configurable 0–1000 bps fees and slippage in strategy UI, optimization, chronological validation and experiment archives; exact cost hypotheses recorded and used for like-for-like comparison. Windows CI verified (latest #40781777398).
 - [x] Comparable saved-experiment research: compare two SMA/EMA experiments only when source fingerprint, sample period, capital and transaction costs coincide; return, benchmark, drawdown and trade-count deltas in native/React UI with explicit restrictions. Fresh CI and manual acceptance pending.
-- [x] EMA crossover integrated as a second signal family alongside SMA in backtesting, parameter optimization, out-of-sample and expanding walk-forward validation, cost stress, native bridge, frontend and persistent experiment snapshots. Pending fresh CI and native UI acceptance.
-- [x] Version-1 saved SMA experiment snapshots with SHA-256 dataset fingerprint, stale-data detection, 100-record cap, export/restore compatibility and persistence tests; CI validation required.
+- [x] EMA crossover integrated as a second signal family alongside SMA in backtesting, parameter optimization, out-of-sample and expanding walk-forward validation, cost stress, native bridge, frontend and persistent experiment snapshots. Automated CI PASS; broader native manual QA remains.
+- [x] Version-1 saved SMA experiment snapshots with SHA-256 dataset fingerprint, stale-data detection, 100-record cap, export/restore compatibility and persistence tests; Automated CI PASS; native manual QA remains.
 - [x] Descriptive daily equity risk metrics (annualized volatility, Sharpe, invested-session exposure, worst session) integrated into backtest DTO, Windows UI and deterministic core assertions; Automated CI verified; native manual acceptance still pending.
 - [ ] Statistical robustness beyond 4 folds: perturbation maps, synthetic regimes and outlier handling.
-- [x] Six-level transaction-cost sensitivity comparing historical SMA returns against fee-adjusted passive benchmark, with C#/WebView2/React and regression tests; CI validation required.
+- [x] Six-level transaction-cost sensitivity comparing historical SMA returns against fee-adjusted passive benchmark, with C#/WebView2/React and regression tests; Automated CI PASS; native manual QA remains.
 - [ ] Portfolio-level multi-asset backtesting.
-- [x] Historical replay trade-ledger reconciliation on persistent load: verify executed OHLC prices, fees, cash, shares and average cost; detect tampered or interrupted snapshots. CI validation required before acceptance.
-- [x] Historical replay pending-order cancellation and inclusive optional good-through expiry, persistent terminal statuses, native bridge, UI controls and regression tests; CI validation required before acceptance.
+- [x] Historical replay trade-ledger reconciliation on persistent load: verify executed OHLC prices, fees, cash, shares and average cost; detect tampered or interrupted snapshots. Automated CI PASS; native manual QA remains.
+- [x] Historical replay pending-order cancellation and inclusive optional good-through expiry, persistent terminal statuses, native bridge, UI controls and regression tests; Automated CI PASS; native manual QA remains.
 - [ ] News: legal free RSS/API source onboarding with attribution and timestamp integrity, dedupe, historical timestamp alignment and optional strictly offline AI analysis.
 - [ ] Automated browser visual regression and real WebView2 automated screenshots across Windows DPI/screen sizes.
 - [ ] Signed/versioned Windows installer and in-place upgrade/recovery exercises; production operational guide.
