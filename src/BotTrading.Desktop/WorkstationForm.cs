@@ -14,6 +14,7 @@ public sealed class WorkstationForm : Form
     private readonly bool _smokeTest;
     private bool _smokeAppInfoReceived;
     private bool _smokeAssetsReceived;
+    private bool _smokePaperReceived;
 
     public WorkstationForm(Workstation app, bool smokeTest = false)
     {
@@ -109,9 +110,37 @@ public sealed class WorkstationForm : Form
                 }
             }
             if (!ready) throw new InvalidOperationException("React or the WebView2 bridge failed to initialize before the smoke timeout.");
-            var screenshot = Path.Combine(AppContext.BaseDirectory, "webview2-smoke.png");
             var core = _browser.CoreWebView2 ??
                 throw new InvalidOperationException("WebView2 was disposed before screenshot capture.");
+            async Task WaitForScreenAsync(string js, string screen, Func<bool>? nativeGate = null)
+            {
+                for (int attempt = 0; attempt < 60; attempt++)
+                {
+                    await Task.Delay(200);
+                    if (await core.ExecuteScriptAsync(js) == "true" && (nativeGate is null || nativeGate()))
+                        return;
+                }
+                throw new InvalidOperationException($"Windows smoke did not reach expected {screen} screen.");
+            }
+
+            await core.ExecuteScriptAsync("document.querySelector('button[title=\\\"Laboratorio de estrategias\\\"]')?.click();");
+            await WaitForScreenAsync(
+                "Boolean(document.querySelector('select[aria-label=\\\"Tipo de media de estrategia\\\"]')) && " +
+                "document.querySelector('h1')?.textContent?.includes('Laboratorio de estrategias')",
+                "strategy lab");
+            await core.ExecuteScriptAsync(
+                "(function(){const s=document.querySelector('select[aria-label=\\\"Tipo de media de estrategia\\\"]');" +
+                "s.value='EMA';s.dispatchEvent(new Event('change',{bubbles:true}));})()");
+            await WaitForScreenAsync(
+                "document.querySelector('select[aria-label=\\\"Tipo de media de estrategia\\\"]')?.value === 'EMA'",
+                "EMA selection");
+            await core.ExecuteScriptAsync("document.querySelector('button[title=\\\"Paper Trading\\\"]')?.click();");
+            await WaitForScreenAsync(
+                "document.querySelector('h1')?.textContent?.includes('Cartera simulada') && " +
+                "Boolean(document.querySelector('.positions')) && !document.querySelector('.error-banner')",
+                "paper portfolio", () => _smokePaperReceived);
+
+            var screenshot = Path.Combine(AppContext.BaseDirectory, "webview2-smoke.png");
             await using (var output = File.Create(screenshot))
                 await core.CapturePreviewAsync(CoreWebView2CapturePreviewImageFormat.Png, output);
             if (new FileInfo(screenshot).Length < 1_000)
@@ -151,6 +180,7 @@ public sealed class WorkstationForm : Form
             Respond(id, true, result, null);
             if (_smokeTest && action == "app.info") _smokeAppInfoReceived = true;
             if (_smokeTest && action == "assets.list") _smokeAssetsReceived = true;
+            if (_smokeTest && action == "paper.snapshot") _smokePaperReceived = true;
         }
         catch (Exception ex)
         {

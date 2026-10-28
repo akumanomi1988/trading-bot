@@ -1,7 +1,7 @@
 # BotTrading — accepted scope, engineering backlog and continuation checkpoint
 
 **Last engineering checkpoint:** 2026-10-28. **Repository:** `akumanomi1988/trading-bot`; **branch:** `dev`.
-**Most recent verified Windows CI baseline before this change:** `afbf94bc` — successful React and .NET Windows CI run https://github.com/akumanomi1988/trading-bot/actions/runs/40577874854. Current EMA changes require a new successful CI run.
+**Latest verified Windows CI:** `518c77fa` — frontend tests/typecheck/build, C# regression tests, Windows publish and real WinForms/WebView2/React native bridge smoke PASS: https://github.com/akumanomi1988/trading-bot/actions/runs/40780136513. Further expanded UI smoke navigation requires a new CI run.
 
 ## Definition of status
 
@@ -39,7 +39,7 @@
 
 ### Priority 0 — release blockers and data correctness
 - [ ] Extend Windows WebView2 E2E beyond startup (permissions, disallowed navigation, dialogs, keyboard focus, replay and persistence).
-- [x] CI opt-in native Windows WebView2 smoke: start the published WinForms executable with isolated local workspace/profile; verify real bundled React DOM, correct virtual origin, both .NET bridge bootstrap commands, screenshot and clean exit. Pending CI validation on runner.
+- [x] Native Windows WebView2 smoke: isolated workspace/profile, actual bundled React DOM, correct virtual origin, bridge bootstrap messages, PNG preview and clean exit verified on CI #40780136513. Expanded smoke now checks strategy tab, EMA selection and paper portfolio. Pending fresh CI acceptance.
 - [ ] Verify real Stooq fetch against current provider availability and terms; investigate a legally usable free fallback only if the data contract is adequate.
 - [x] Deterministic HTTP contract tests for Stooq origin, redirects, rate limiting, oversized payloads, invalid symbols and malformed bodies; no provider calls in automated tests. Pending Windows CI.
 - [ ] Model market calendars and corporate actions; prevent split-induced false strategy performance and verify adjusted/raw normalization.
