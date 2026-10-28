@@ -86,7 +86,7 @@ Prices must be positive; volume may be zero or omitted; each date must be unique
 
 ## Verification status
 
-- **Windows CI** (`dev`): 106 C# core/application checks and 11 frontend tests PASS, React typecheck/build, `dotnet publish` win-x64 and expanded real WebView2 UI smoke PASS at `48e1acd9`. [CI evidence](https://github.com/akumanomi1988/trading-bot/actions/runs/40781112710). Latest chart optimization requires fresh CI.
+- **Windows CI** (`dev`): 106/106 .NET regression tests and 14/14 TypeScript chart/bridge tests pass, plus React typecheck/build, native win-x64 publish and actual WinForms/WebView2 E2E using synthetic OHLC fixtures to complete an EMA backtest and paper BUY. Verified at commit `02c931ca`: [Windows CI evidence](https://github.com/akumanomi1988/trading-bot/actions/runs/40781777398). This is not a signed release or full manual Windows QA.
 - Windows CI executes a real WinForms/WebView2 smoke run using isolated synthetic OHLC instruments, checks the dual-asset UI, EMA backtest and simulated paper BUY using the native bridge, and saves an on-screen PNG; passing it does not certify all interaction or visual/accessibility acceptance. The artifact is an **unsigned build**, not a validated installer. Artifacts are retained for seven days.
 - Real WebView2 interactions, provider downloads, native dialog, visual and accessibility tests, clean-machine packaging and upgrade behavior: **NOT ACCEPTED**.
 - Documentation and manual test protocols: `docs/BACKLOG.md` and `docs/ACCEPTANCE.md`. **No full phase is accepted as COMPLETE.**
