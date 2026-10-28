@@ -110,8 +110,10 @@ public sealed class WorkstationForm : Form
             }
             if (!ready) throw new InvalidOperationException("React or the WebView2 bridge failed to initialize before the smoke timeout.");
             var screenshot = Path.Combine(AppContext.BaseDirectory, "webview2-smoke.png");
+            var core = _browser.CoreWebView2 ??
+                throw new InvalidOperationException("WebView2 was disposed before screenshot capture.");
             await using (var output = File.Create(screenshot))
-                await _browser.CoreWebView2.CapturePreviewAsync(CoreWebView2CapturePreviewImageFormat.Png, output);
+                await core.CapturePreviewAsync(CoreWebView2CapturePreviewImageFormat.Png, output);
             if (new FileInfo(screenshot).Length < 1_000)
                 throw new InvalidDataException("WebView2 produced an invalid smoke screenshot.");
             System.Diagnostics.Trace.WriteLine("BotTrading Windows WebView2 smoke PASSED.");
