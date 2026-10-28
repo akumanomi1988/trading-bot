@@ -38,7 +38,8 @@
 ## Prioritized remaining engineering work
 
 ### Priority 0 — release blockers and data correctness
-- [ ] Extend Windows WebView2 E2E with denied navigation/permissions, native dialogs, keyboard focus and restart persistence.
+- [ ] Extend Windows WebView2 E2E with permission denial, native dialogs, keyboard focus and restart persistence.
+- [x] Added real external-origin navigation attempt in the Windows WebView2 smoke, asserting the host cancels the navigation and React remains on the allowed virtual origin. Needs new CI acceptance.
 - [x] End-to-end simulated market fixture (two independent 420-candle symbols), React compare view, UI-selected EMA backtest, UI simulated buy and C# paper-account reconciliation verified in native Windows CI #40781777398; no broker access or production data.
 - [x] Native Windows WebView2 smoke: isolated workspace/profile, actual bundled React DOM, correct virtual origin, bridge bootstrap messages, PNG preview and clean exit verified on CI #40780136513. Expanded smoke includes strategy tab, EMA selection and paper portfolio; CI #40780519212 PASS.
 - [ ] Verify real Stooq fetch against current provider availability and terms; investigate a legally usable free fallback only if the data contract is adequate.

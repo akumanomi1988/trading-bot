@@ -15,6 +15,7 @@ public sealed class WorkstationForm : Form
     private bool _smokeAppInfoReceived;
     private bool _smokeAssetsReceived;
     private bool _smokePaperReceived;
+    private bool _smokeBlockedExternalNavigation;
 
     public WorkstationForm(Workstation app, bool smokeTest = false)
     {
@@ -55,7 +56,11 @@ public sealed class WorkstationForm : Form
                 bool safe = Uri.TryCreate(url, UriKind.Absolute, out var parsed) &&
                     (parsed.GetLeftPart(UriPartial.Authority) == AppOrigin ||
                      (dev && parsed.GetLeftPart(UriPartial.Authority) == "http://127.0.0.1:5173"));
-                if (!safe) e.Cancel = true;
+                if (!safe)
+                {
+                    e.Cancel = true;
+                    if (_smokeTest) _smokeBlockedExternalNavigation = true;
+                }
             };
             core.WebMessageReceived += OnMessageAsync;
             string? devUrl = Environment.GetEnvironmentVariable("BOTTRADING_DEV_URL");
@@ -158,6 +163,14 @@ public sealed class WorkstationForm : Form
             var positions = _app.PaperSnapshot().Positions;
             if (positions.Count != 1 || positions[0].Quantity != 1 || positions[0].Symbol != "SIM.A")
                 throw new InvalidOperationException("Native simulated portfolio did not persist the UI buy.");
+            // The navigation is deliberately denied by the native host before a network request.
+            // An untrusted page must never become a bridge-capable app origin.
+            await core.ExecuteScriptAsync("window.location.assign('https://outside-origin.invalid/');");
+            await WaitForScreenAsync(
+                "location.origin === 'https://bottrading.local' && " +
+                "document.querySelector('h1')?.textContent?.includes('Cartera simulada')",
+                "blocked cross-origin navigation", () => _smokeBlockedExternalNavigation);
+
             var screenshot = Path.Combine(AppContext.BaseDirectory, "webview2-smoke.png");
             await using (var output = File.Create(screenshot))
                 await core.CapturePreviewAsync(CoreWebView2CapturePreviewImageFormat.Png, output);

@@ -66,6 +66,8 @@ This protocol distinguishes automated Windows CI smoke checks from remaining nat
 
 32. Large-chart acceptance: import an instrument with 100,000 daily observations and navigate to its comparison, strategy and replay charts. Confirm line rendering stays responsive, the 1,200-vertex cap preserves first/last observations and extrema, unusual spikes remain visible, and relative calendar spacing is maintained. Measure peak memory and UI latency on Windows separately; the bounded SVG chart itself does not cap native-to-React history serialization.
 
+34. Cross-origin navigation E2E: during the native WebView2 CI smoke, attempt to navigate to https://outside-origin.invalid. The native NavigationStarting handler must cancel it; WebView2 must stay at the allowed virtual HTTPS origin, retain the portfolio screen and not expose the bridge to any remote page. The smoke test should fail if navigation escapes. Popup and permission-denial cases remain separately pending.
+
 33. Synthetic desktop E2E: execute the Windows CI smoke with two isolated synthetic 420-session instruments. The initial comparison must show the synthetic symbols. On the Strategy tab select EMA and run a genuine .NET backtest; the performance panel must contain an EMA result. On Paper Trading submit a BUY of one SIM.A simulated share via the UI, verify its displayed position and matching backend paper balance, and capture the PNG. No real broker or network feed is used. This does not replace full human acceptance of dialogs, DPI, persistence over multiple executions and real data.
 
 Never use a live brokerage account, production secrets or real money for acceptance.
