@@ -76,7 +76,7 @@ public sealed class WorkspaceStore
             x.StrategyKind is null ? x with { StrategyKind = "SMA" } : x).ToArray();
         if (experiments.Length > ExperimentArchive.MaxExperiments ||
             experiments.Any(x => !ExperimentArchive.IsValid(x)) ||
-            experiments.Select(x => x.Id).Distinct(StringComparer.Ordinal).Count() != experiments.Count)
+            experiments.Select(x => x.Id).Distinct(StringComparer.Ordinal).Count() != experiments.Length)
             throw new InvalidDataException("Invalid saved strategy experiments. No data was overwritten.");
         return new(validated, saved.Paper, saved.Replay, savedNews, experiments, 1);
     }

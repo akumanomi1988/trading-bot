@@ -19,6 +19,7 @@ export type BacktestResult = {
   finalEquity: number; returnPct: number; maxDrawdownPct: number; roundTrips: number;
   winRatePct: number; fills: Fill[]; equity: { date: string; equity: number }[];
   benchmarkReturnPct: number; excessReturnPct: number; risk: RiskMetrics | null;
+  feeBps: number; slippageBps: number;
 };
 export type PaperPosition = { symbol: string; quantity: number; averagePrice: number; markPrice: number; marketValue: number; unrealizedPnL: number };
 export type PaperSnapshot = {
