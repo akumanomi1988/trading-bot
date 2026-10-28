@@ -807,6 +807,45 @@ Check("EMA validation and transaction costs retain strategy identity", () => {
     var wf = new WalkForwardService().Validate(market, strategyKind: "EMA");
     True(wf.StrategyKind == "EMA" && wf.FoldCount == 4);
 });
+
+Check("strategy experiment comparison accepts same underlying historical series", () => {
+    var m = Series("AA", Enumerable.Range(0, 80).Select(i => 100m + (i % 21)).ToArray());
+    var sma = ExperimentArchive.Capture(m, new Backtester().Run(m, new("AA", 3, 8, StrategyKind: "SMA")));
+    var ema = ExperimentArchive.Capture(m, new Backtester().Run(m, new("AA", 3, 8, StrategyKind: "EMA")));
+    var compared = ExperimentArchive.Compare(sma, ema);
+    True(compared.DatasetSha256 == sma.DatasetSha256 && compared.Left.StrategyKind == "SMA"
+        && compared.Right.StrategyKind == "EMA");
+    Nearly(compared.ReturnDeltaPctPoints, sma.ReturnPct - ema.ReturnPct);
+    Nearly(compared.DrawdownDeltaPctPoints, sma.MaxDrawdownPct - ema.MaxDrawdownPct);
+    Nearly(compared.BenchmarkDeltaPctPoints, 0);
+});
+Check("saved strategy comparison rejects differing data and accounting assumptions", () => {
+    var m = Series("AA", Enumerable.Repeat(100m, 60).ToArray());
+    var baseline = ExperimentArchive.Capture(m, new Backtester().Run(m, new("AA", 3, 8)));
+    var alternate = ExperimentArchive.Capture(m, new Backtester().Run(m, new("AA", 4, 9)));
+    Throws<ArgumentException>(() => ExperimentArchive.Compare(baseline, baseline));
+    Throws<InvalidOperationException>(() => ExperimentArchive.Compare(baseline,
+        alternate with { DatasetSha256 = new string('A', 64) }));
+    Throws<InvalidOperationException>(() => ExperimentArchive.Compare(baseline,
+        alternate with { InitialCapital = 50_000m }));
+    Throws<InvalidOperationException>(() => ExperimentArchive.Compare(baseline,
+        alternate with { FeeBps = 15m }));
+});
+Check("workstation compares only valid saved experiment IDs", () => {
+    var dir = Path.Combine(Path.GetTempPath(), "bt-compare-" + Guid.NewGuid().ToString("N"));
+    try {
+        var m = Series("AA", Enumerable.Repeat(100m, 60).ToArray());
+        var store = new WorkspaceStore(dir);
+        store.Save(new([m], new(10000m, [], [])));
+        using var work = new Workstation(store);
+        var a = work.SaveExperimentAsync("AA", 3, 8, "SMA").GetAwaiter().GetResult();
+        var b = work.SaveExperimentAsync("AA", 3, 8, "EMA").GetAwaiter().GetResult();
+        var result = work.CompareExperiments(a.Experiment.Id, b.Experiment.Id);
+        True(result.Left.StrategyKind == "SMA" && result.Right.StrategyKind == "EMA");
+        Throws<ArgumentException>(() => work.CompareExperiments("bad", b.Experiment.Id));
+    }
+    finally { if (Directory.Exists(dir)) Directory.Delete(dir, true); }
+});
 Check("DCA monthly contributions use first available monthly open", () => {
     var candles = new[] {
         new Candle(new DateOnly(2020, 1, 3), 10, 11, 9, 10, 100),

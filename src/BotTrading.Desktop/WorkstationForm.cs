@@ -114,6 +114,7 @@ public sealed class WorkstationForm : Form
             "app.info" => new { version = "0.1.0", mode = "offline-first", execution = "simulation-only", source = "WebView2 bridge" },
             "assets.list" => _app.ListSeries(),
             "experiments.list" => _app.ListExperiments(),
+            "experiments.compare" => _app.CompareExperiments(Str("leftId"), Str("rightId")),
             "experiments.save" => await _app.SaveExperimentAsync(Str("symbol"), Int("fastPeriod"), Int("slowPeriod"), StrategyKind()),
             "experiments.delete" => await DeleteExperimentAsync(Str("id")),
             "workspace.exportBackup" => await ExportBackupWithDialogAsync(),

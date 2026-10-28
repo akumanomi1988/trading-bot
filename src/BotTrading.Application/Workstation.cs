@@ -79,6 +79,20 @@ public sealed class Workstation : IDisposable
         }
     }
 
+    public ExperimentComparison CompareExperiments(string leftId, string rightId)
+    {
+        if (!Guid.TryParseExact(leftId, "N", out _) || !Guid.TryParseExact(rightId, "N", out _))
+            throw new ArgumentException("Both experiment identifiers must be valid.");
+        lock (_marketSync)
+        {
+            var left = _experiments.FirstOrDefault(x => x.Id == leftId)
+                ?? throw new KeyNotFoundException("First experiment was not found.");
+            var right = _experiments.FirstOrDefault(x => x.Id == rightId)
+                ?? throw new KeyNotFoundException("Second experiment was not found.");
+            return ExperimentArchive.Compare(left, right);
+        }
+    }
+
     public async Task<ExperimentView> SaveExperimentAsync(string symbol, int fast, int slow, string strategyKind = "SMA")
     {
         await _writeLock.WaitAsync();
