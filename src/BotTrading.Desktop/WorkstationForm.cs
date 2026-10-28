@@ -194,6 +194,8 @@ public sealed class WorkstationForm : Form
         int Int(string key) => args.GetProperty(key).GetInt32();
         decimal Cost(string key) => args.TryGetProperty(key, out var value) && value.ValueKind == JsonValueKind.Number
             ? value.GetDecimal() : 5m;
+        decimal AllocationPct() => args.TryGetProperty("maxAllocationPct", out var value) &&
+            value.ValueKind == JsonValueKind.Number ? value.GetDecimal() : 100m;
         string StrategyKind()
         {
             string? kind = args.TryGetProperty("strategyKind", out var prop) && prop.ValueKind == JsonValueKind.String
@@ -206,7 +208,7 @@ public sealed class WorkstationForm : Form
             "assets.list" => _app.ListSeries(),
             "experiments.list" => _app.ListExperiments(),
             "experiments.compare" => _app.CompareExperiments(Str("leftId"), Str("rightId")),
-            "experiments.save" => await _app.SaveExperimentAsync(Str("symbol"), Int("fastPeriod"), Int("slowPeriod"), StrategyKind(), Cost("feeBps"), Cost("slippageBps")),
+            "experiments.save" => await _app.SaveExperimentAsync(Str("symbol"), Int("fastPeriod"), Int("slowPeriod"), StrategyKind(), Cost("feeBps"), Cost("slippageBps"), AllocationPct()),
             "experiments.delete" => await DeleteExperimentAsync(Str("id")),
             "workspace.exportBackup" => await ExportBackupWithDialogAsync(),
             "workspace.restoreBackup" => await RestoreBackupWithDialogAsync(),
@@ -226,8 +228,8 @@ public sealed class WorkstationForm : Form
                 args.TryGetProperty("targetSymbol", out var target) && target.ValueKind == JsonValueKind.String ?
                     target.GetString() : null)),
             "backtest.run" => _app.Backtest(Str("symbol"), Int("fastPeriod"), Int("slowPeriod"), strategyKind: StrategyKind(),
-                feeBps: Cost("feeBps"), slippageBps: Cost("slippageBps")),
-            "backtest.optimize" => await Task.Run(() => _app.Optimize(Str("symbol"), StrategyKind(), Cost("feeBps"), Cost("slippageBps"))),
+                feeBps: Cost("feeBps"), slippageBps: Cost("slippageBps"), maxAllocationPct: AllocationPct()),
+            "backtest.optimize" => await Task.Run(() => _app.Optimize(Str("symbol"), StrategyKind(), Cost("feeBps"), Cost("slippageBps"), AllocationPct())),
             "simulation.dca" => await Task.Run(() => _app.SimulateDca(Str("symbol"),
                 args.TryGetProperty("monthlyContribution", out var contribution) && contribution.ValueKind == JsonValueKind.Number ?
                     contribution.GetDecimal() : 100m,
@@ -235,10 +237,10 @@ public sealed class WorkstationForm : Form
                     DateOnly.Parse(startDate.GetString()!) : null,
                 args.TryGetProperty("endDate", out var endDca) && endDca.ValueKind == JsonValueKind.String ?
                     DateOnly.Parse(endDca.GetString()!) : null)),
-            "strategy.validate" => await Task.Run(() => _app.ValidateOutOfSample(Str("symbol"), StrategyKind(), Cost("feeBps"), Cost("slippageBps"))),
+            "strategy.validate" => await Task.Run(() => _app.ValidateOutOfSample(Str("symbol"), StrategyKind(), Cost("feeBps"), Cost("slippageBps"), AllocationPct())),
             "strategy.costSensitivity" => await Task.Run(() => _app.AnalyzeCostSensitivity(
-                Str("symbol"), Int("fastPeriod"), Int("slowPeriod"), StrategyKind())),
-            "strategy.walkForward" => await Task.Run(() => _app.ValidateWalkForward(Str("symbol"), StrategyKind(), Cost("feeBps"), Cost("slippageBps"))),
+                Str("symbol"), Int("fastPeriod"), Int("slowPeriod"), StrategyKind(), AllocationPct())),
+            "strategy.walkForward" => await Task.Run(() => _app.ValidateWalkForward(Str("symbol"), StrategyKind(), Cost("feeBps"), Cost("slippageBps"), AllocationPct())),
             "replay.snapshot" => _app.ReplaySnapshot(),
             "replay.clear" => await ClearReplayAsync(),
             "replay.start" => await _app.StartReplayAsync(Str("symbol"), DateOnly.Parse(Str("startDate"))),

@@ -73,7 +73,8 @@ public sealed class WorkspaceStore
         // Old version-1 experiment JSON did not contain strategyKind and was always SMA.
         // Normalize the in-memory representation without rewriting the user's original file.
         var experiments = existingExperiments.Select(x =>
-            x.StrategyKind is null ? x with { StrategyKind = "SMA" } : x).ToArray();
+            x with { StrategyKind = x.StrategyKind ?? "SMA",
+                MaxAllocationPct = x.MaxAllocationPct == 0m ? 100m : x.MaxAllocationPct }).ToArray();
         if (experiments.Length > ExperimentArchive.MaxExperiments ||
             experiments.Any(x => !ExperimentArchive.IsValid(x)) ||
             experiments.Select(x => x.Id).Distinct(StringComparer.Ordinal).Count() != experiments.Length)

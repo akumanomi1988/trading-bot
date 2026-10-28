@@ -974,6 +974,27 @@ Check("invalid transaction costs are rejected by all strategy paths", () => {
     Throws<ArgumentOutOfRangeException>(() => new Backtester().Optimize(m, feeBps: 1001m));
     Throws<ArgumentOutOfRangeException>(() => new Backtester().Run(m, new("AA", 3, 8, SlippageBps: 1001m)));
 });
+
+Check("capital allocation cap limits the first buy including costs", () => {
+    var input = Series("AA", 10,9,8,7,6,8,12,16,18,20,18,15,11,8,6,12,18,22);
+    var full = new Backtester().Run(input, new("AA", 2, 4));
+    var half = new Backtester().Run(input, new("AA", 2, 4, MaxAllocationPct: 50m));
+    var buy = half.Fills.First(x => x.Side == "BUY");
+    True(buy.Quantity < full.Fills.First(x => x.Side == "BUY").Quantity);
+    True(buy.Quantity * buy.Price + buy.Fee <= 5_000m && half.MaxAllocationPct == 50m);
+});
+Check("allocation configuration prevents incomparable saved experiments", () => {
+    var input = Series("AA", Enumerable.Repeat(100m, 60).ToArray());
+    var full = ExperimentArchive.Capture(input, new Backtester().Run(input, new("AA", 3, 8)));
+    var half = ExperimentArchive.Capture(input, new Backtester().Run(input, new("AA", 3, 8, MaxAllocationPct: 50m)));
+    True(ExperimentArchive.IsValid(half) && half.MaxAllocationPct == 50m);
+    Throws<InvalidOperationException>(() => ExperimentArchive.Compare(full, half));
+});
+Check("invalid allocation limits fail before backtesting", () => {
+    var input = Series("AA", Enumerable.Repeat(100m, 60).ToArray());
+    Throws<ArgumentOutOfRangeException>(() => new Backtester().Run(input, new("AA", 3, 8, MaxAllocationPct: 0m)));
+    Throws<ArgumentOutOfRangeException>(() => new Backtester().Run(input, new("AA", 3, 8, StrategyKind: "EMA", MaxAllocationPct: 101m)));
+});
 Check("DCA monthly contributions use first available monthly open", () => {
     var candles = new[] {
         new Candle(new DateOnly(2020, 1, 3), 10, 11, 9, 10, 100),

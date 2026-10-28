@@ -1,13 +1,13 @@
 namespace BotTrading.Core;
 
 public sealed record BacktestRequest(string Symbol, int FastPeriod, int SlowPeriod, decimal InitialCapital = 10_000m,
-    decimal FeeBps = 5m, decimal SlippageBps = 5m, string StrategyKind = "SMA");
+    decimal FeeBps = 5m, decimal SlippageBps = 5m, string StrategyKind = "SMA", decimal MaxAllocationPct = 100m);
 public sealed record EquityPoint(DateOnly Date, decimal Equity);
 public sealed record Fill(DateOnly Date, string Side, int Quantity, decimal Price, decimal Fee, string Reason);
 public sealed record BacktestResult(string Symbol, int FastPeriod, int SlowPeriod, decimal InitialCapital,
     decimal FinalEquity, decimal ReturnPct, decimal MaxDrawdownPct, int RoundTrips, decimal WinRatePct,
     IReadOnlyList<Fill> Fills, IReadOnlyList<EquityPoint> Equity,
-    decimal BenchmarkReturnPct = 0m, decimal ExcessReturnPct = 0m, RiskMetrics? Risk = null, string StrategyKind = "SMA", decimal FeeBps = 5m, decimal SlippageBps = 5m);
+    decimal BenchmarkReturnPct = 0m, decimal ExcessReturnPct = 0m, RiskMetrics? Risk = null, string StrategyKind = "SMA", decimal FeeBps = 5m, decimal SlippageBps = 5m, decimal MaxAllocationPct = 100m);
 
 public sealed class Backtester
 {
@@ -20,6 +20,8 @@ public sealed class Backtester
             throw new ArgumentOutOfRangeException(nameof(request.InitialCapital));
         if (request.FeeBps < 0 || request.FeeBps > 1000 || request.SlippageBps < 0 || request.SlippageBps > 1000)
             throw new ArgumentOutOfRangeException(nameof(request.FeeBps), "Costs must be 0-1000 basis points.");
+        if (request.MaxAllocationPct <= 0m || request.MaxAllocationPct > 100m)
+            throw new ArgumentOutOfRangeException(nameof(request.MaxAllocationPct));
         if (request.StrategyKind is not ("SMA" or "EMA"))
             throw new ArgumentException("Strategy kind must be SMA or EMA.", nameof(request.StrategyKind));
         var bars = series.Candles;
@@ -47,7 +49,8 @@ public sealed class Backtester
                 if (buy && shares == 0)
                 {
                     var px = bars[i].Open * (1 + request.SlippageBps / 10000);
-                    int qty = (int)Math.Min(int.MaxValue, decimal.Floor(cash / (px * (1 + request.FeeBps / 10000))));
+                    decimal allocationBudget = cash * request.MaxAllocationPct / 100m;
+                    int qty = (int)Math.Min(int.MaxValue, decimal.Floor(allocationBudget / (px * (1m + request.FeeBps / 10000m))));
                     if (qty > 0)
                     {
                         var fee = qty * px * request.FeeBps / 10000;
@@ -91,7 +94,7 @@ public sealed class Backtester
             decimal.Round(maxDrawdown, 2), completed,
             completed == 0 ? 0 : decimal.Round((decimal)wins / completed * 100, 2), fills, equity,
             benchmarkReturn, strategyReturn - benchmarkReturn,
-            RiskAnalytics.Analyze(equity, investedSessions), request.StrategyKind, request.FeeBps, request.SlippageBps);
+            RiskAnalytics.Analyze(equity, investedSessions), request.StrategyKind, request.FeeBps, request.SlippageBps, request.MaxAllocationPct);
 
         void Close(DateOnly date, decimal rawPrice, string reason)
         {
@@ -109,13 +112,13 @@ public sealed class Backtester
 
     // In-sample grid search is exploratory, NOT a validated out-of-sample strategy.
     public IReadOnlyList<BacktestResult> Optimize(MarketSeries series, decimal initialCapital = 10_000m,
-        string strategyKind = "SMA", decimal feeBps = 5m, decimal slippageBps = 5m)
+        string strategyKind = "SMA", decimal feeBps = 5m, decimal slippageBps = 5m, decimal maxAllocationPct = 100m)
     {
         var results = new List<BacktestResult>();
         foreach (int slow in new[] { 15, 20, 30, 50, 100, 200 })
             foreach (int fast in new[] { 3, 5, 10, 15, 20, 30, 50 })
                 if (fast < slow && series.Candles.Count > slow + 3)
-                    results.Add(Run(series, new(series.Symbol, fast, slow, initialCapital, feeBps, slippageBps, strategyKind)));
+                    results.Add(Run(series, new(series.Symbol, fast, slow, initialCapital, feeBps, slippageBps, strategyKind, maxAllocationPct)));
         return results.OrderByDescending(x => x.FinalEquity).Take(12).ToArray();
     }
 }

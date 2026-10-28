@@ -94,7 +94,7 @@ public sealed class Workstation : IDisposable
     }
 
     public async Task<ExperimentView> SaveExperimentAsync(string symbol, int fast, int slow, string strategyKind = "SMA",
-        decimal feeBps = 5m, decimal slippageBps = 5m)
+        decimal feeBps = 5m, decimal slippageBps = 5m, decimal maxAllocationPct = 100m)
     {
         await _writeLock.WaitAsync();
         try
@@ -104,7 +104,7 @@ public sealed class Workstation : IDisposable
             // Perform the backtest before mutating persistence.
             var experiment = await Task.Run(() =>
                 ExperimentArchive.Capture(market,
-                    _backtester.Run(market, new BacktestRequest(market.Symbol, fast, slow, FeeBps: feeBps, SlippageBps: slippageBps, StrategyKind: strategyKind))));
+                    _backtester.Run(market, new BacktestRequest(market.Symbol, fast, slow, FeeBps: feeBps, SlippageBps: slippageBps, StrategyKind: strategyKind, MaxAllocationPct: maxAllocationPct))));
             lock (_marketSync)
             {
                 if (_experiments.Count >= ExperimentArchive.MaxExperiments)
@@ -162,17 +162,17 @@ public sealed class Workstation : IDisposable
     }
 
     public BacktestResult Backtest(string symbol, int fast, int slow, decimal capital = 10_000m, string strategyKind = "SMA",
-        decimal feeBps = 5m, decimal slippageBps = 5m)
+        decimal feeBps = 5m, decimal slippageBps = 5m, decimal maxAllocationPct = 100m)
     {
         var series = GetSeries(symbol);
-        return _backtester.Run(series, new(symbol.ToUpperInvariant(), fast, slow, capital, feeBps, slippageBps, strategyKind));
+        return _backtester.Run(series, new(symbol.ToUpperInvariant(), fast, slow, capital, feeBps, slippageBps, strategyKind, maxAllocationPct));
     }
 
-    public CostSensitivityReport AnalyzeCostSensitivity(string symbol, int fast, int slow, string strategyKind = "SMA") =>
-        new CostSensitivityService().Analyze(GetSeries(symbol), fast, slow, strategyKind: strategyKind);
+    public CostSensitivityReport AnalyzeCostSensitivity(string symbol, int fast, int slow, string strategyKind = "SMA", decimal maxAllocationPct = 100m) =>
+        new CostSensitivityService().Analyze(GetSeries(symbol), fast, slow, strategyKind: strategyKind, maxAllocationPct: maxAllocationPct);
 
-    public IReadOnlyList<BacktestResult> Optimize(string symbol, string strategyKind = "SMA", decimal feeBps = 5m, decimal slippageBps = 5m) =>
-        _backtester.Optimize(GetSeries(symbol), strategyKind: strategyKind, feeBps: feeBps, slippageBps: slippageBps);
+    public IReadOnlyList<BacktestResult> Optimize(string symbol, string strategyKind = "SMA", decimal feeBps = 5m, decimal slippageBps = 5m, decimal maxAllocationPct = 100m) =>
+        _backtester.Optimize(GetSeries(symbol), strategyKind: strategyKind, feeBps: feeBps, slippageBps: slippageBps, maxAllocationPct: maxAllocationPct);
     public DcaReport SimulateDca(string symbol, decimal monthlyContribution, DateOnly? start = null, DateOnly? end = null) =>
         new DcaSimulator().Run(GetSeries(symbol), monthlyContribution, start, end);
     public PaperView PaperSnapshot()
@@ -181,10 +181,10 @@ public sealed class Workstation : IDisposable
     }
     public DataQualityReport AnalyzeQuality(string symbol, DateOnly? cutoff = null) =>
         new DataQualityService().Analyze(GetSeries(symbol), cutoff);
-    public ValidationReport ValidateOutOfSample(string symbol, string strategyKind = "SMA", decimal feeBps = 5m, decimal slippageBps = 5m) =>
-        new RobustnessService().Validate(GetSeries(symbol), strategyKind, feeBps, slippageBps);
-    public WalkForwardReport ValidateWalkForward(string symbol, string strategyKind = "SMA", decimal feeBps = 5m, decimal slippageBps = 5m) =>
-        new WalkForwardService().Validate(GetSeries(symbol), strategyKind: strategyKind, feeBps: feeBps, slippageBps: slippageBps);
+    public ValidationReport ValidateOutOfSample(string symbol, string strategyKind = "SMA", decimal feeBps = 5m, decimal slippageBps = 5m, decimal maxAllocationPct = 100m) =>
+        new RobustnessService().Validate(GetSeries(symbol), strategyKind, feeBps, slippageBps, maxAllocationPct);
+    public WalkForwardReport ValidateWalkForward(string symbol, string strategyKind = "SMA", decimal feeBps = 5m, decimal slippageBps = 5m, decimal maxAllocationPct = 100m) =>
+        new WalkForwardService().Validate(GetSeries(symbol), strategyKind: strategyKind, feeBps: feeBps, slippageBps: slippageBps, maxAllocationPct: maxAllocationPct);
 
     public ReplaySnapshot? ReplaySnapshot()
     {

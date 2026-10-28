@@ -11,7 +11,7 @@ public sealed record SavedExperiment(int Version, string Id, DateTimeOffset Crea
     decimal FeeBps, decimal SlippageBps, string DatasetSha256,
     int CandleCount, DateOnly FirstDate, DateOnly LastDate,
     decimal ReturnPct, decimal BenchmarkReturnPct, decimal MaxDrawdownPct,
-    int RoundTrips, RiskMetrics? Risk, string StrategyKind = "SMA");
+    int RoundTrips, RiskMetrics? Risk, string StrategyKind = "SMA", decimal MaxAllocationPct = 100m);
 
 public sealed record ExperimentView(SavedExperiment Experiment, bool DatasetMatchesCurrent);
 
@@ -40,7 +40,7 @@ public static class ExperimentArchive
             market.Symbol, backtest.FastPeriod, backtest.SlowPeriod, backtest.InitialCapital,
             backtest.FeeBps, backtest.SlippageBps, Fingerprint(market), market.Candles.Count, market.Candles[0].Date,
             market.Candles[^1].Date, backtest.ReturnPct, backtest.BenchmarkReturnPct,
-            backtest.MaxDrawdownPct, backtest.RoundTrips, backtest.Risk, backtest.StrategyKind);
+            backtest.MaxDrawdownPct, backtest.RoundTrips, backtest.Risk, backtest.StrategyKind, backtest.MaxAllocationPct);
     }
 
     public static ExperimentComparison Compare(SavedExperiment left, SavedExperiment right)
@@ -53,7 +53,7 @@ public static class ExperimentArchive
         if (left.Symbol != right.Symbol || left.DatasetSha256 != right.DatasetSha256 ||
             left.CandleCount != right.CandleCount || left.FirstDate != right.FirstDate ||
             left.LastDate != right.LastDate || left.InitialCapital != right.InitialCapital ||
-            left.FeeBps != right.FeeBps || left.SlippageBps != right.SlippageBps)
+            left.FeeBps != right.FeeBps || left.SlippageBps != right.SlippageBps || left.MaxAllocationPct != right.MaxAllocationPct)
             throw new InvalidOperationException(
                 "Experiments are not comparable: symbol, data fingerprint, dates, capital and costs must match.");
         return new(left, right, left.DatasetSha256,
@@ -66,7 +66,7 @@ public static class ExperimentArchive
         Guid.TryParseExact(item.Id, "N", out _) &&
         item.Symbol is { Length: > 0 and <= 20 } &&
         item.DatasetSha256 is not null && HashPattern.IsMatch(item.DatasetSha256) &&
-        item.StrategyKind is ("SMA" or "EMA") &&
+        item.StrategyKind is ("SMA" or "EMA") && item.MaxAllocationPct is > 0m and <= 100m &&
         item.FastPeriod is >= 2 and < 250 && item.SlowPeriod is >= 3 and <= 250 &&
         item.FastPeriod < item.SlowPeriod && item.InitialCapital is >= 100m and <= 1_000_000_000m &&
         item.FeeBps is >= 0m and <= 1000m && item.SlippageBps is >= 0m and <= 1000m &&
