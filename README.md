@@ -32,7 +32,7 @@ The shell maps bundled `frontend/dist` to a local virtual HTTPS hostname; busine
 - Import user-supplied CSV from a native OpenFileDialog; accepts `date,open,high,low,close[,volume]`, ISO dates, comma or semicolon delimiter; validates OHLC and duplicates.
 - Optionally download Stooq daily historical bars (example ticker `AAPL.US`); HTTPS, fixed provider host, request timeout, size cap and symbol allowlist.
 - Maintain up to 25 instruments locally (100,000 candles each); replace instrument history by reimport, preserving paper positions.
-- Render two synchronized asset charts, normalized-return overlay and selectable historical cutoff.
+- Render two synchronized asset charts, normalized-return overlay and selectable historical cutoff. SVG plotting preserves session/date X positions and bucket extrema while bounding the rendered path to 1,200 vertices; full-market series still cross the native bridge until streaming/paging is implemented.
 - Search matching return sequences between the two selected instruments, or through the imported catalog, using Pearson correlation; exclude future samples and overlapping self-matches. Inspect an individual match with a normalized session-by-session shape comparison.
 - Backtest long-only SMA/EMA crossover with next-opening fills, whole-share sizing, commission and slippage, equity series, closed trades, win rate and maximum drawdown. Compare strategy returns with a fee-adjusted buy-and-hold benchmark over the same interval. Report daily equity-curve annualized volatility, zero-risk-free Sharpe (undefined for a flat/insufficient series), time invested, worst daily session and observation count using a stated 252-trading-session convention.
 - Configure independent commission and slippage inputs (0–1000 basis points each) for SMA/EMA backtests, parameter optimization, validation and persisted experiments.
@@ -86,7 +86,7 @@ Prices must be positive; volume may be zero or omitted; each date must be unique
 
 ## Verification status
 
-- **Windows CI** (`dev`): frontend tests/typecheck/build, native .NET regression assertions, `dotnet publish` win-x64 and a genuine WinForms/WebView2/React bridge startup test PASS at `518c77fa`. [CI evidence](https://github.com/akumanomi1988/trading-bot/actions/runs/40780136513). The new expanded navigation smoke still requires validation.
+- **Windows CI** (`dev`): 106 C# core/application checks and 11 frontend tests PASS, React typecheck/build, `dotnet publish` win-x64 and expanded real WebView2 UI smoke PASS at `48e1acd9`. [CI evidence](https://github.com/akumanomi1988/trading-bot/actions/runs/40781112710). Latest chart optimization requires fresh CI.
 - Windows CI now attempts a real WinForms/WebView2 startup smoke run on the published EXE, checking bundled React and two host bridge responses and saving an on-screen PNG; passing it does not certify full interaction or visual/accessibility acceptance. The artifact is an **unsigned build**, not a validated installer. Artifacts are retained for seven days.
 - Real WebView2 interactions, provider downloads, native dialog, visual and accessibility tests, clean-machine packaging and upgrade behavior: **NOT ACCEPTED**.
 - Documentation and manual test protocols: `docs/BACKLOG.md` and `docs/ACCEPTANCE.md`. **No full phase is accepted as COMPLETE.**

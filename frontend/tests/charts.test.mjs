@@ -45,3 +45,40 @@ test('time plot respects calendar spacing, not array index spacing', async () =>
   assert.ok(plot.path.includes('L10.00,'));
   assert.ok(plot.path.includes('L100.00,'));
 });
+
+test('extrema sampler preserves endpoints, original order and large drawdown spikes', async () => {
+  const {extremaSampleIndices, MAX_RENDER_POINTS} = await import('../.test-build/charts.js');
+  const points = Array.from({length:100000}, (_,i) => ({date: new Date(Date.UTC(2000,0,1+i)).toISOString().slice(0,10), value: i/1000}));
+  points[50000].value=-40;
+  points[50001].value=90;
+  const indices = extremaSampleIndices(points);
+  assert.ok(indices.length <= MAX_RENDER_POINTS);
+  assert.equal(indices[0],0);
+  assert.equal(indices.at(-1),99999);
+  assert.ok(indices.includes(50000) && indices.includes(50001));
+  assert.deepEqual(indices,[...indices].sort((a,b)=>a-b));
+  assert.equal(new Set(indices).size,indices.length);
+});
+test('100k-point SVG charts are bounded while preserving time coordinates and extrema', async () => {
+  const {buildTimePlot,MAX_RENDER_POINTS} = await import('../.test-build/charts.js');
+  const points = Array.from({length:100000}, (_,i) => ({date:new Date(Date.UTC(2000,0,1+i)).toISOString().slice(0,10),value:0}));
+  points[50000].value=100;
+  points[50001].value=-100;
+  const indexed = buildPlot(points,1000,100);
+  const timed = buildTimePlot(points,1000,100,[-110,110],points[0].date,points.at(-1).date);
+  for(const plot of [indexed,timed]) {
+    assert.ok(plot.path.length < MAX_RENDER_POINTS * 21);
+    assert.ok((plot.path.match(/[ML]/g)||[]).length <= MAX_RENDER_POINTS);
+    assert.ok(plot.path.includes('0.00,'));
+    assert.ok(!plot.path.includes('NaN') && !plot.path.includes('Infinity'));
+  }
+  assert.equal(indexed.min,-100);
+  assert.equal(indexed.max,100);
+  assert.equal(indexed.last,0);
+  assert.deepEqual(sharedDomain(points,[]).map(Math.sign),[-1,1]);
+});
+test('small charts remain identical and sampling limit is guarded', async () => {
+  const {extremaSampleIndices} = await import('../.test-build/charts.js');
+  assert.deepEqual(extremaSampleIndices([{date:'2026-01-01',value:2},{date:'2026-01-02',value:3}]),[0,1]);
+  assert.throws(()=>extremaSampleIndices([{date:'2026-01-01',value:0}],Number.POSITIVE_INFINITY),RangeError);
+});
