@@ -1,13 +1,13 @@
 namespace BotTrading.Core;
 
 public sealed record BacktestRequest(string Symbol, int FastPeriod, int SlowPeriod, decimal InitialCapital = 10_000m,
-    decimal FeeBps = 5m, decimal SlippageBps = 5m);
+    decimal FeeBps = 5m, decimal SlippageBps = 5m, string StrategyKind = "SMA");
 public sealed record EquityPoint(DateOnly Date, decimal Equity);
 public sealed record Fill(DateOnly Date, string Side, int Quantity, decimal Price, decimal Fee, string Reason);
 public sealed record BacktestResult(string Symbol, int FastPeriod, int SlowPeriod, decimal InitialCapital,
     decimal FinalEquity, decimal ReturnPct, decimal MaxDrawdownPct, int RoundTrips, decimal WinRatePct,
     IReadOnlyList<Fill> Fills, IReadOnlyList<EquityPoint> Equity,
-    decimal BenchmarkReturnPct = 0m, decimal ExcessReturnPct = 0m, RiskMetrics? Risk = null);
+    decimal BenchmarkReturnPct = 0m, decimal ExcessReturnPct = 0m, RiskMetrics? Risk = null, string StrategyKind = "SMA");
 
 public sealed class Backtester
 {
@@ -20,6 +20,8 @@ public sealed class Backtester
             throw new ArgumentOutOfRangeException(nameof(request.InitialCapital));
         if (request.FeeBps < 0 || request.FeeBps > 1000 || request.SlippageBps < 0 || request.SlippageBps > 1000)
             throw new ArgumentOutOfRangeException(nameof(request.FeeBps), "Costs must be 0-1000 basis points.");
+        if (request.StrategyKind is not ("SMA" or "EMA"))
+            throw new ArgumentException("Strategy kind must be SMA or EMA.", nameof(request.StrategyKind));
         var bars = series.Candles;
         int startIndex = 0;
         if (tradingStart is not null)
@@ -27,8 +29,8 @@ public sealed class Backtester
             while (startIndex < bars.Count && bars[startIndex].Date < tradingStart.Value) startIndex++;
             if (startIndex >= bars.Count) throw new ArgumentException("Trading start is after the last candle.");
         }
-        var fast = Indicators.Sma(bars, request.FastPeriod);
-        var slow = Indicators.Sma(bars, request.SlowPeriod);
+        var fast = request.StrategyKind == "EMA" ? Indicators.Ema(bars, request.FastPeriod) : Indicators.Sma(bars, request.FastPeriod);
+        var slow = request.StrategyKind == "EMA" ? Indicators.Ema(bars, request.SlowPeriod) : Indicators.Sma(bars, request.SlowPeriod);
         decimal cash = request.InitialCapital, peak = cash, maxDrawdown = 0;
         int shares = 0, wins = 0, completed = 0, investedSessions = 0;
         decimal entryCost = 0;
@@ -52,12 +54,12 @@ public sealed class Backtester
                         entryCost = qty * px + fee;
                         cash -= entryCost;
                         shares = qty;
-                        fills.Add(new(bars[i].Date, "BUY", qty, px, fee, "SMA cross at previous close"));
+                        fills.Add(new(bars[i].Date, "BUY", qty, px, fee, $"{request.StrategyKind} cross at previous close"));
                     }
                 }
                 else if (sell && shares > 0)
                 {
-                    Close(bars[i].Date, bars[i].Open, "SMA cross at previous close");
+                    Close(bars[i].Date, bars[i].Open, $"{request.StrategyKind} cross at previous close");
                 }
             }
             // Count sessions with intraday exposure, including terminal liquidation day.
@@ -89,7 +91,7 @@ public sealed class Backtester
             decimal.Round(maxDrawdown, 2), completed,
             completed == 0 ? 0 : decimal.Round((decimal)wins / completed * 100, 2), fills, equity,
             benchmarkReturn, strategyReturn - benchmarkReturn,
-            RiskAnalytics.Analyze(equity, investedSessions));
+            RiskAnalytics.Analyze(equity, investedSessions), request.StrategyKind);
 
         void Close(DateOnly date, decimal rawPrice, string reason)
         {
@@ -106,13 +108,13 @@ public sealed class Backtester
     }
 
     // In-sample grid search is exploratory, NOT a validated out-of-sample strategy.
-    public IReadOnlyList<BacktestResult> Optimize(MarketSeries series, decimal initialCapital = 10_000m)
+    public IReadOnlyList<BacktestResult> Optimize(MarketSeries series, decimal initialCapital = 10_000m, string strategyKind = "SMA")
     {
         var results = new List<BacktestResult>();
         foreach (int slow in new[] { 15, 20, 30, 50, 100, 200 })
             foreach (int fast in new[] { 3, 5, 10, 15, 20, 30, 50 })
                 if (fast < slow && series.Candles.Count > slow + 3)
-                    results.Add(Run(series, new(series.Symbol, fast, slow, initialCapital)));
+                    results.Add(Run(series, new(series.Symbol, fast, slow, initialCapital, StrategyKind: strategyKind)));
         return results.OrderByDescending(x => x.FinalEquity).Take(12).ToArray();
     }
 }

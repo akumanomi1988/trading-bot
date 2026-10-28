@@ -103,12 +103,18 @@ public sealed class WorkstationForm : Form
     {
         string Str(string key) => args.GetProperty(key).GetString() ?? throw new ArgumentException($"'{key}' is required.");
         int Int(string key) => args.GetProperty(key).GetInt32();
+        string StrategyKind()
+        {
+            string? kind = args.TryGetProperty("strategyKind", out var prop) && prop.ValueKind == JsonValueKind.String
+                ? prop.GetString() : "SMA";
+            return kind is "SMA" or "EMA" ? kind : throw new ArgumentException("Unknown strategy kind.");
+        }
         return action switch
         {
             "app.info" => new { version = "0.1.0", mode = "offline-first", execution = "simulation-only", source = "WebView2 bridge" },
             "assets.list" => _app.ListSeries(),
             "experiments.list" => _app.ListExperiments(),
-            "experiments.save" => await _app.SaveExperimentAsync(Str("symbol"), Int("fastPeriod"), Int("slowPeriod")),
+            "experiments.save" => await _app.SaveExperimentAsync(Str("symbol"), Int("fastPeriod"), Int("slowPeriod"), StrategyKind()),
             "experiments.delete" => await DeleteExperimentAsync(Str("id")),
             "workspace.exportBackup" => await ExportBackupWithDialogAsync(),
             "workspace.restoreBackup" => await RestoreBackupWithDialogAsync(),
@@ -127,8 +133,8 @@ public sealed class WorkstationForm : Form
                     DateOnly.Parse(endDate.GetString()!) : null,
                 args.TryGetProperty("targetSymbol", out var target) && target.ValueKind == JsonValueKind.String ?
                     target.GetString() : null)),
-            "backtest.run" => _app.Backtest(Str("symbol"), Int("fastPeriod"), Int("slowPeriod")),
-            "backtest.optimize" => await Task.Run(() => _app.Optimize(Str("symbol"))),
+            "backtest.run" => _app.Backtest(Str("symbol"), Int("fastPeriod"), Int("slowPeriod"), strategyKind: StrategyKind()),
+            "backtest.optimize" => await Task.Run(() => _app.Optimize(Str("symbol"), StrategyKind())),
             "simulation.dca" => await Task.Run(() => _app.SimulateDca(Str("symbol"),
                 args.TryGetProperty("monthlyContribution", out var contribution) && contribution.ValueKind == JsonValueKind.Number ?
                     contribution.GetDecimal() : 100m,
@@ -136,10 +142,10 @@ public sealed class WorkstationForm : Form
                     DateOnly.Parse(startDate.GetString()!) : null,
                 args.TryGetProperty("endDate", out var endDca) && endDca.ValueKind == JsonValueKind.String ?
                     DateOnly.Parse(endDca.GetString()!) : null)),
-            "strategy.validate" => await Task.Run(() => _app.ValidateOutOfSample(Str("symbol"))),
+            "strategy.validate" => await Task.Run(() => _app.ValidateOutOfSample(Str("symbol"), StrategyKind())),
             "strategy.costSensitivity" => await Task.Run(() => _app.AnalyzeCostSensitivity(
-                Str("symbol"), Int("fastPeriod"), Int("slowPeriod"))),
-            "strategy.walkForward" => await Task.Run(() => _app.ValidateWalkForward(Str("symbol"))),
+                Str("symbol"), Int("fastPeriod"), Int("slowPeriod"), StrategyKind())),
+            "strategy.walkForward" => await Task.Run(() => _app.ValidateWalkForward(Str("symbol"), StrategyKind())),
             "replay.snapshot" => _app.ReplaySnapshot(),
             "replay.clear" => await ClearReplayAsync(),
             "replay.start" => await _app.StartReplayAsync(Str("symbol"), DateOnly.Parse(Str("startDate"))),

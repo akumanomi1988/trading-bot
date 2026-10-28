@@ -768,6 +768,45 @@ Check("workspace refuses duplicate persisted experiment identifiers", () => {
     }
     finally { if (Directory.Exists(dir)) Directory.Delete(dir, true); }
 });
+
+Check("EMA signals use only prior completed close and execute at next open", () => {
+    var market = Series("AA", 10,9,8,7,6,8,12,16,18,20,18,15,11,8,6,12,18,22);
+    var result = new Backtester().Run(market, new("AA", 2, 4, StrategyKind: "EMA"));
+    True(result.StrategyKind == "EMA" && result.Fills.Any(f => f.Side == "BUY"));
+    var fast = Indicators.Ema(market.Candles, 2);
+    var slow = Indicators.Ema(market.Candles, 4);
+    foreach (var fill in result.Fills.Where(x => !x.Reason.StartsWith("End-of-sample")))
+    {
+        int i = Array.FindIndex(market.Candles.ToArray(), x => x.Date == fill.Date);
+        True(i >= 2 && fast[i - 2].HasValue && slow[i - 2].HasValue);
+        True(fill.Side == "BUY"
+            ? fast[i - 2] <= slow[i - 2] && fast[i - 1] > slow[i - 1]
+            : fast[i - 2] >= slow[i - 2] && fast[i - 1] < slow[i - 1]);
+        True(fill.Reason.StartsWith("EMA cross"));
+    }
+});
+Check("unknown crossover kind cannot silently use SMA", () =>
+    Throws<ArgumentException>(() => new Backtester().Run(Series("AA", Enumerable.Repeat(100m, 80).ToArray()),
+        new("AA", 3, 8, StrategyKind: "UNSUPPORTED"))));
+Check("saved EMA experiment records kind; legacy default remains SMA", () => {
+    var market = Series("AA", Enumerable.Repeat(100m, 60).ToArray());
+    var result = new Backtester().Run(market, new("AA", 3, 8, StrategyKind: "EMA"));
+    var entry = ExperimentArchive.Capture(market, result);
+    True(entry.StrategyKind == "EMA" && ExperimentArchive.IsValid(entry));
+    True(!ExperimentArchive.IsValid(entry with { StrategyKind = "X" }));
+    True(ExperimentArchive.IsValid(entry with { StrategyKind = "SMA" }));
+});
+Check("EMA validation and transaction costs retain strategy identity", () => {
+    var closes = Enumerable.Range(0, 420).Select(i => 100m + (i / 28 % 2 == 0 ? i % 28 : 28 - i % 28)).ToArray();
+    var market = Series("AA", closes);
+    var stress = new CostSensitivityService().Analyze(market, 3, 8, strategyKind: "EMA");
+    True(stress.StrategyKind == "EMA" && stress.Scenarios.Count == 6);
+    var holdout = new RobustnessService().Validate(market, "EMA");
+    True(holdout.StrategyKind == "EMA" && holdout.Training.StrategyKind == "EMA"
+        && holdout.OutOfSample.StrategyKind == "EMA");
+    var wf = new WalkForwardService().Validate(market, strategyKind: "EMA");
+    True(wf.StrategyKind == "EMA" && wf.FoldCount == 4);
+});
 Check("DCA monthly contributions use first available monthly open", () => {
     var candles = new[] {
         new Candle(new DateOnly(2020, 1, 3), 10, 11, 9, 10, 100),

@@ -79,7 +79,7 @@ public sealed class Workstation : IDisposable
         }
     }
 
-    public async Task<ExperimentView> SaveExperimentAsync(string symbol, int fast, int slow)
+    public async Task<ExperimentView> SaveExperimentAsync(string symbol, int fast, int slow, string strategyKind = "SMA")
     {
         await _writeLock.WaitAsync();
         try
@@ -89,7 +89,7 @@ public sealed class Workstation : IDisposable
             // Perform the backtest before mutating persistence.
             var experiment = await Task.Run(() =>
                 ExperimentArchive.Capture(market,
-                    _backtester.Run(market, new BacktestRequest(market.Symbol, fast, slow))));
+                    _backtester.Run(market, new BacktestRequest(market.Symbol, fast, slow, StrategyKind: strategyKind))));
             lock (_marketSync)
             {
                 if (_experiments.Count >= ExperimentArchive.MaxExperiments)
@@ -146,16 +146,17 @@ public sealed class Workstation : IDisposable
         return _patterns.Find(series, snapshot, window, maxResults, end);
     }
 
-    public BacktestResult Backtest(string symbol, int fast, int slow, decimal capital = 10_000m)
+    public BacktestResult Backtest(string symbol, int fast, int slow, decimal capital = 10_000m, string strategyKind = "SMA")
     {
         var series = GetSeries(symbol);
-        return _backtester.Run(series, new(symbol.ToUpperInvariant(), fast, slow, capital));
+        return _backtester.Run(series, new(symbol.ToUpperInvariant(), fast, slow, capital, StrategyKind: strategyKind));
     }
 
-    public CostSensitivityReport AnalyzeCostSensitivity(string symbol, int fast, int slow) =>
-        new CostSensitivityService().Analyze(GetSeries(symbol), fast, slow);
+    public CostSensitivityReport AnalyzeCostSensitivity(string symbol, int fast, int slow, string strategyKind = "SMA") =>
+        new CostSensitivityService().Analyze(GetSeries(symbol), fast, slow, strategyKind: strategyKind);
 
-    public IReadOnlyList<BacktestResult> Optimize(string symbol) => _backtester.Optimize(GetSeries(symbol));
+    public IReadOnlyList<BacktestResult> Optimize(string symbol, string strategyKind = "SMA") =>
+        _backtester.Optimize(GetSeries(symbol), strategyKind: strategyKind);
     public DcaReport SimulateDca(string symbol, decimal monthlyContribution, DateOnly? start = null, DateOnly? end = null) =>
         new DcaSimulator().Run(GetSeries(symbol), monthlyContribution, start, end);
     public PaperView PaperSnapshot()
@@ -164,8 +165,10 @@ public sealed class Workstation : IDisposable
     }
     public DataQualityReport AnalyzeQuality(string symbol, DateOnly? cutoff = null) =>
         new DataQualityService().Analyze(GetSeries(symbol), cutoff);
-    public ValidationReport ValidateOutOfSample(string symbol) => new RobustnessService().Validate(GetSeries(symbol));
-    public WalkForwardReport ValidateWalkForward(string symbol) => new WalkForwardService().Validate(GetSeries(symbol));
+    public ValidationReport ValidateOutOfSample(string symbol, string strategyKind = "SMA") =>
+        new RobustnessService().Validate(GetSeries(symbol), strategyKind);
+    public WalkForwardReport ValidateWalkForward(string symbol, string strategyKind = "SMA") =>
+        new WalkForwardService().Validate(GetSeries(symbol), strategyKind: strategyKind);
 
     public ReplaySnapshot? ReplaySnapshot()
     {

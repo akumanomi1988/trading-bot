@@ -11,7 +11,7 @@ public sealed record SavedExperiment(int Version, string Id, DateTimeOffset Crea
     decimal FeeBps, decimal SlippageBps, string DatasetSha256,
     int CandleCount, DateOnly FirstDate, DateOnly LastDate,
     decimal ReturnPct, decimal BenchmarkReturnPct, decimal MaxDrawdownPct,
-    int RoundTrips, RiskMetrics? Risk);
+    int RoundTrips, RiskMetrics? Risk, string StrategyKind = "SMA");
 
 public sealed record ExperimentView(SavedExperiment Experiment, bool DatasetMatchesCurrent);
 
@@ -36,7 +36,7 @@ public static class ExperimentArchive
             market.Symbol, backtest.FastPeriod, backtest.SlowPeriod, backtest.InitialCapital,
             5m, 5m, Fingerprint(market), market.Candles.Count, market.Candles[0].Date,
             market.Candles[^1].Date, backtest.ReturnPct, backtest.BenchmarkReturnPct,
-            backtest.MaxDrawdownPct, backtest.RoundTrips, backtest.Risk);
+            backtest.MaxDrawdownPct, backtest.RoundTrips, backtest.Risk, backtest.StrategyKind);
     }
 
     public static bool IsValid(SavedExperiment? item) =>
@@ -44,6 +44,7 @@ public static class ExperimentArchive
         Guid.TryParseExact(item.Id, "N", out _) &&
         item.Symbol is { Length: > 0 and <= 20 } &&
         item.DatasetSha256 is not null && HashPattern.IsMatch(item.DatasetSha256) &&
+        item.StrategyKind is ("SMA" or "EMA") &&
         item.FastPeriod is >= 2 and < 250 && item.SlowPeriod is >= 3 and <= 250 &&
         item.FastPeriod < item.SlowPeriod && item.InitialCapital is >= 100m and <= 1_000_000_000m &&
         item.FeeBps is >= 0m and <= 1000m && item.SlippageBps is >= 0m and <= 1000m &&
