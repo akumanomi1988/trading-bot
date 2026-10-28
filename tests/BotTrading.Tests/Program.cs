@@ -949,6 +949,31 @@ Check("future workspace schema version is rejected without overwriting user data
     }
     finally { if (Directory.Exists(dir)) Directory.Delete(dir, true); }
 });
+
+Check("custom fees and slippage propagate to SMA and EMA results", () => {
+    var m = Series("AA", Enumerable.Repeat(100m, 70).ToArray());
+    var result = new Backtester().Run(m, new("AA", 3, 8, FeeBps: 75m, SlippageBps: 35m, StrategyKind: "EMA"));
+    True(result.StrategyKind == "EMA" && result.FeeBps == 75m && result.SlippageBps == 35m);
+    var saved = ExperimentArchive.Capture(m, result);
+    True(saved.FeeBps == 75m && saved.SlippageBps == 35m);
+    True(ExperimentArchive.IsValid(saved));
+});
+Check("custom costs stay identical throughout train-only optimization and holdout", () => {
+    var closes = Enumerable.Range(0, 405).Select(i => 100m + i % 35).ToArray();
+    var m = Series("AA", closes);
+    var selected = new Backtester().Optimize(m, strategyKind: "EMA", feeBps: 65m, slippageBps: 40m);
+    True(selected.Count > 0 && selected.All(x => x.FeeBps == 65m && x.SlippageBps == 40m));
+    var holdout = new RobustnessService().Validate(m, "EMA", 65m, 40m);
+    True(holdout.Training.FeeBps == 65m && holdout.OutOfSample.SlippageBps == 40m);
+    var wf = new WalkForwardService().Validate(m, strategyKind: "EMA", feeBps: 65m, slippageBps: 40m);
+    True(wf.StrategyKind == "EMA");
+});
+Check("invalid transaction costs are rejected by all strategy paths", () => {
+    var m = Series("AA", Enumerable.Repeat(100m, 90).ToArray());
+    Throws<ArgumentOutOfRangeException>(() => new Backtester().Run(m, new("AA", 3, 8, FeeBps: -1m)));
+    Throws<ArgumentOutOfRangeException>(() => new Backtester().Optimize(m, feeBps: 1001m));
+    Throws<ArgumentOutOfRangeException>(() => new Backtester().Run(m, new("AA", 3, 8, SlippageBps: 1001m)));
+});
 Check("DCA monthly contributions use first available monthly open", () => {
     var candles = new[] {
         new Candle(new DateOnly(2020, 1, 3), 10, 11, 9, 10, 100),

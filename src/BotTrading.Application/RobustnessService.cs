@@ -10,17 +10,17 @@ public sealed class RobustnessService
 {
     // Fixed, chronological 70/30 holdout. No test observations are used for parameter selection.
     // Indicator warm-up may use pre-test closes, as those were known before test trading.
-    public ValidationReport Validate(MarketSeries series, string strategyKind = "SMA")
+    public ValidationReport Validate(MarketSeries series, string strategyKind = "SMA", decimal feeBps = 5m, decimal slippageBps = 5m)
     {
         if (series.Candles.Count < 300)
             throw new ArgumentException("Out-of-sample validation requires at least 300 daily candles.");
         int testStartIndex = series.Candles.Count * 7 / 10;
         var training = new MarketSeries(series.Symbol, series.Name,
             series.Candles.Take(testStartIndex).ToArray());
-        var candidates = new Backtester().Optimize(training, strategyKind: strategyKind);
+        var candidates = new Backtester().Optimize(training, strategyKind: strategyKind, feeBps: feeBps, slippageBps: slippageBps);
         if (candidates.Count == 0) throw new InvalidOperationException("Not enough training candles for strategy validation.");
         var selected = candidates[0];
-        var request = new BacktestRequest(series.Symbol, selected.FastPeriod, selected.SlowPeriod, StrategyKind: strategyKind);
+        var request = new BacktestRequest(series.Symbol, selected.FastPeriod, selected.SlowPeriod, FeeBps: feeBps, SlippageBps: slippageBps, StrategyKind: strategyKind);
         var outOfSample = new Backtester().Run(series, request, series.Candles[testStartIndex].Date);
         return new(series.Symbol, training.Candles[0].Date, training.Candles[^1].Date,
             series.Candles[testStartIndex].Date, series.Candles[^1].Date,
@@ -39,7 +39,8 @@ public sealed record WalkForwardReport(string Symbol, int FoldCount, decimal Pos
 
 public sealed class WalkForwardService
 {
-    public WalkForwardReport Validate(MarketSeries series, int foldCount = 4, string strategyKind = "SMA")
+    public WalkForwardReport Validate(MarketSeries series, int foldCount = 4, string strategyKind = "SMA",
+        decimal feeBps = 5m, decimal slippageBps = 5m)
     {
         ArgumentNullException.ThrowIfNull(series);
         if (foldCount is < 2 or > 8)
@@ -63,7 +64,7 @@ public sealed class WalkForwardService
             // Build the train-only set BEFORE optimization. Never pass future closes into Optimize.
             var train = new MarketSeries(series.Symbol, series.Name,
                 series.Candles.Take(testStart).ToArray());
-            var candidates = engine.Optimize(train, strategyKind: strategyKind);
+            var candidates = engine.Optimize(train, strategyKind: strategyKind, feeBps: feeBps, slippageBps: slippageBps);
             if (candidates.Count == 0)
                 throw new InvalidOperationException("No eligible in-sample parameters in walk-forward fold.");
             var chosen = candidates[0];
@@ -72,7 +73,7 @@ public sealed class WalkForwardService
             // indicator warm-up. A signal formed on a future close cannot influence the test.
             var historyToEndOfFold = new MarketSeries(series.Symbol, series.Name,
                 series.Candles.Take(testEndExclusive).ToArray());
-            var parameters = new BacktestRequest(series.Symbol, chosen.FastPeriod, chosen.SlowPeriod, StrategyKind: strategyKind);
+            var parameters = new BacktestRequest(series.Symbol, chosen.FastPeriod, chosen.SlowPeriod, FeeBps: feeBps, SlippageBps: slippageBps, StrategyKind: strategyKind);
             var test = engine.Run(historyToEndOfFold, parameters, series.Candles[testStart].Date);
             if (test.Equity.Count != testEndExclusive - testStart)
                 throw new InvalidOperationException("Walk-forward fold has an unexpected evaluation range.");

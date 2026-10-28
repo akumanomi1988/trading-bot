@@ -38,7 +38,7 @@ public static class ExperimentArchive
             throw new ArgumentException("Cannot archive a result for a different instrument.");
         return new(1, Guid.NewGuid().ToString("N"), DateTimeOffset.UtcNow,
             market.Symbol, backtest.FastPeriod, backtest.SlowPeriod, backtest.InitialCapital,
-            5m, 5m, Fingerprint(market), market.Candles.Count, market.Candles[0].Date,
+            backtest.FeeBps, backtest.SlippageBps, Fingerprint(market), market.Candles.Count, market.Candles[0].Date,
             market.Candles[^1].Date, backtest.ReturnPct, backtest.BenchmarkReturnPct,
             backtest.MaxDrawdownPct, backtest.RoundTrips, backtest.Risk, backtest.StrategyKind);
     }

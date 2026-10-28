@@ -7,7 +7,7 @@ public sealed record Fill(DateOnly Date, string Side, int Quantity, decimal Pric
 public sealed record BacktestResult(string Symbol, int FastPeriod, int SlowPeriod, decimal InitialCapital,
     decimal FinalEquity, decimal ReturnPct, decimal MaxDrawdownPct, int RoundTrips, decimal WinRatePct,
     IReadOnlyList<Fill> Fills, IReadOnlyList<EquityPoint> Equity,
-    decimal BenchmarkReturnPct = 0m, decimal ExcessReturnPct = 0m, RiskMetrics? Risk = null, string StrategyKind = "SMA");
+    decimal BenchmarkReturnPct = 0m, decimal ExcessReturnPct = 0m, RiskMetrics? Risk = null, string StrategyKind = "SMA", decimal FeeBps = 5m, decimal SlippageBps = 5m);
 
 public sealed class Backtester
 {
@@ -91,7 +91,7 @@ public sealed class Backtester
             decimal.Round(maxDrawdown, 2), completed,
             completed == 0 ? 0 : decimal.Round((decimal)wins / completed * 100, 2), fills, equity,
             benchmarkReturn, strategyReturn - benchmarkReturn,
-            RiskAnalytics.Analyze(equity, investedSessions), request.StrategyKind);
+            RiskAnalytics.Analyze(equity, investedSessions), request.StrategyKind, request.FeeBps, request.SlippageBps);
 
         void Close(DateOnly date, decimal rawPrice, string reason)
         {
@@ -108,13 +108,14 @@ public sealed class Backtester
     }
 
     // In-sample grid search is exploratory, NOT a validated out-of-sample strategy.
-    public IReadOnlyList<BacktestResult> Optimize(MarketSeries series, decimal initialCapital = 10_000m, string strategyKind = "SMA")
+    public IReadOnlyList<BacktestResult> Optimize(MarketSeries series, decimal initialCapital = 10_000m,
+        string strategyKind = "SMA", decimal feeBps = 5m, decimal slippageBps = 5m)
     {
         var results = new List<BacktestResult>();
         foreach (int slow in new[] { 15, 20, 30, 50, 100, 200 })
             foreach (int fast in new[] { 3, 5, 10, 15, 20, 30, 50 })
                 if (fast < slow && series.Candles.Count > slow + 3)
-                    results.Add(Run(series, new(series.Symbol, fast, slow, initialCapital, StrategyKind: strategyKind)));
+                    results.Add(Run(series, new(series.Symbol, fast, slow, initialCapital, feeBps, slippageBps, strategyKind)));
         return results.OrderByDescending(x => x.FinalEquity).Take(12).ToArray();
     }
 }
