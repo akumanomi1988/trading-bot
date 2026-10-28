@@ -45,7 +45,8 @@
 - [ ] Model market calendars and corporate actions; prevent split-induced false strategy performance and verify adjusted/raw normalization.
 - [x] Persist validated historical source/provenance (user CSV vs Stooq, UNKNOWN adjustment, unknown currency/venue); surface uncertainty in data-quality UI without guessing ticker denomination. CI validation required.
 - [ ] Track instrument currency and trading venue; reject cross-currency aggregates until FX modeling is available.
-- [ ] Strengthen workspace interruption, fault-injection and schema migration handling.
+- [ ] Strengthen workspace interruption and fault injection further.
+- [x] Workspace schema v1 gate rejects unknown future schemas without rewriting data; legacy v1 experiments with missing strategy kind are normalized to SMA on read and preserved by the next atomic save. CI validation required.
 - [x] Native JSON backup/export and validated atomic restore, with pre-restore recovery copy and corruption tests; Windows UI acceptance remains pending.
 - [ ] Perform reproducible 25 symbols × 100k candles memory, CPU and render profiling, with downsampling if required.
 

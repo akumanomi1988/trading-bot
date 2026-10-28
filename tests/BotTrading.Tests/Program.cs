@@ -910,6 +910,45 @@ Check("historical HTTP import rejects unusable provider body and invalid ticker"
     Throws<ArgumentException>(() => source.DownloadStooqAsync("https://bad.example").GetAwaiter().GetResult());
     True(calls == 1, "Invalid tickers must be rejected before the HTTP request.");
 });
+
+Check("legacy experiment JSON without strategy kind is migrated to SMA on read", () => {
+    var dir = Path.Combine(Path.GetTempPath(), "bt-legacy-schema-" + Guid.NewGuid().ToString("N"));
+    try {
+        var series = Series("AA", Enumerable.Repeat(100m, 70).ToArray());
+        var store = new WorkspaceStore(dir);
+        var result = new Backtester().Run(series, new("AA", 3, 8));
+        store.Save(new([series], new(10_000m, [], []), null, null,
+            [ExperimentArchive.Capture(series, result)]));
+        var path = Path.Combine(dir, "workspace.v1.json");
+        var json = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(path))!;
+        json["experiments"]![0]!.AsObject().Remove("strategyKind");
+        json.AsObject().Remove("schemaVersion");
+        File.WriteAllText(path, json.ToJsonString());
+        var prior = File.ReadAllText(path);
+        var loaded = store.Load();
+        True(loaded.SchemaVersion == 1 && loaded.Experiments!.Single().StrategyKind == "SMA");
+        True(File.ReadAllText(path) == prior, "Reading a legacy schema must not rewrite the original file.");
+        store.Save(loaded);
+        True(store.Load().Experiments!.Single().StrategyKind == "SMA");
+    }
+    finally { if (Directory.Exists(dir)) Directory.Delete(dir, true); }
+});
+Check("future workspace schema version is rejected without overwriting user data", () => {
+    var dir = Path.Combine(Path.GetTempPath(), "bt-future-schema-" + Guid.NewGuid().ToString("N"));
+    try {
+        var store = new WorkspaceStore(dir);
+        store.Save(new([Series("AA", 100m)], new(10_000m, [], [])));
+        var path = Path.Combine(dir, "workspace.v1.json");
+        var json = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(path))!;
+        json["schemaVersion"] = 2;
+        File.WriteAllText(path, json.ToJsonString());
+        var prior = File.ReadAllText(path);
+        Throws<InvalidDataException>(() => store.Load());
+        True(File.ReadAllText(path) == prior);
+        Throws<ArgumentException>(() => store.Save(new([], new(1000m, [], []), SchemaVersion: 2)));
+    }
+    finally { if (Directory.Exists(dir)) Directory.Delete(dir, true); }
+});
 Check("DCA monthly contributions use first available monthly open", () => {
     var candles = new[] {
         new Candle(new DateOnly(2020, 1, 3), 10, 11, 9, 10, 100),

@@ -40,6 +40,8 @@ public sealed class WorkspaceStore
             throw new InvalidDataException("The workspace exceeds the 512 MiB import safety limit.");
         var saved = JsonSerializer.Deserialize<Workspace>(File.ReadAllText(path), _json)
             ?? throw new InvalidDataException("Workspace JSON is empty.");
+        if (saved.SchemaVersion is not (0 or 1))
+            throw new InvalidDataException("Unsupported workspace schema version. No data was overwritten.");
         if (saved.Series is null || saved.Paper is null || saved.Paper.Positions is null || saved.Paper.Fills is null)
             throw new InvalidDataException("Workspace JSON is incomplete. No data was overwritten.");
         if (saved.Series.Count > 25) throw new InvalidDataException("Workspace contains too many instruments.");
@@ -65,15 +67,26 @@ public sealed class WorkspaceStore
         var savedNews = saved.News ?? [];
         if (savedNews.Count > NewsResearch.MaxItems || savedNews.Any(x => !NewsResearch.IsValid(x)))
             throw new InvalidDataException("Invalid news research state. No data was overwritten.");
-        var experiments = saved.Experiments ?? [];
-        if (experiments.Count > ExperimentArchive.MaxExperiments ||
+        var existingExperiments = saved.Experiments ?? [];
+        if (existingExperiments.Any(x => x is null))
+            throw new InvalidDataException("Null experiment in workspace.");
+        // Old version-1 experiment JSON did not contain strategyKind and was always SMA.
+        // Normalize the in-memory representation without rewriting the user's original file.
+        var experiments = existingExperiments.Select(x =>
+            x.StrategyKind is null ? x with { StrategyKind = "SMA" } : x).ToArray();
+        if (experiments.Length > ExperimentArchive.MaxExperiments ||
             experiments.Any(x => !ExperimentArchive.IsValid(x)) ||
             experiments.Select(x => x.Id).Distinct(StringComparer.Ordinal).Count() != experiments.Count)
             throw new InvalidDataException("Invalid saved strategy experiments. No data was overwritten.");
-        return new(validated, saved.Paper, saved.Replay, savedNews, experiments);
+        return new(validated, saved.Paper, saved.Replay, savedNews, experiments, 1);
     }
 
-    public void Save(Workspace workspace) => WriteAtomic(workspace, _path);
+    public void Save(Workspace workspace)
+    {
+        if (workspace.SchemaVersion != 1)
+            throw new ArgumentException("Unsupported workspace schema version.", nameof(workspace));
+        WriteAtomic(workspace, _path);
+    }
 
     public void ExportBackup(Workspace workspace, string destinationPath)
     {
@@ -102,7 +115,8 @@ public sealed class WorkspaceStore
 }
 
 public sealed record Workspace(IReadOnlyList<MarketSeries> Series, PaperAccount Paper, ReplaySession? Replay = null,
-    IReadOnlyList<NewsEvent>? News = null, IReadOnlyList<SavedExperiment>? Experiments = null);
+    IReadOnlyList<NewsEvent>? News = null, IReadOnlyList<SavedExperiment>? Experiments = null,
+    int SchemaVersion = 1);
 
 public sealed class PaperBroker
 {
