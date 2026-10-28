@@ -42,6 +42,11 @@ export type CostSensitivityReport = {
   scenarios: { feeBps: number; slippageBps: number; returnPct: number; benchmarkReturnPct: number;
     excessReturnPct: number; maxDrawdownPct: number; roundTrips: number; finalEquity: number }[];
 };
+export type ExperimentComparison = {
+  left: ExperimentView['experiment']; right: ExperimentView['experiment']; datasetSha256: string;
+  returnDeltaPctPoints: number; benchmarkDeltaPctPoints: number;
+  drawdownDeltaPctPoints: number; roundTripDelta: number;
+};
 export type ExperimentView = { datasetMatchesCurrent: boolean;
   experiment: { version: number; id: string; createdAt: string; symbol: string;
     fastPeriod: number; slowPeriod: number; strategyKind?: StrategyKind; initialCapital: number; feeBps: number; slippageBps: number;

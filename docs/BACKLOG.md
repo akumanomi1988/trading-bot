@@ -48,7 +48,8 @@
 - [ ] Perform reproducible 25 symbols × 100k candles memory, CPU and render profiling, with downsampling if required.
 
 ### Priority 1 — originally planned product scope
-- [ ] Risk constraints and comparative multi-run analysis.
+- [ ] Risk constraints and portfolio-level multi-run analysis.
+- [x] Comparable saved-experiment research: compare two SMA/EMA experiments only when source fingerprint, sample period, capital and transaction costs coincide; return, benchmark, drawdown and trade-count deltas in native/React UI with explicit restrictions. Fresh CI and manual acceptance pending.
 - [x] EMA crossover integrated as a second signal family alongside SMA in backtesting, parameter optimization, out-of-sample and expanding walk-forward validation, cost stress, native bridge, frontend and persistent experiment snapshots. Pending fresh CI and native UI acceptance.
 - [x] Version-1 saved SMA experiment snapshots with SHA-256 dataset fingerprint, stale-data detection, 100-record cap, export/restore compatibility and persistence tests; CI validation required.
 - [x] Descriptive daily equity risk metrics (annualized volatility, Sharpe, invested-session exposure, worst session) integrated into backtest DTO, Windows UI and deterministic core assertions; CI validation required before acceptance.
