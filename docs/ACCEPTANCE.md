@@ -60,6 +60,8 @@ This protocol distinguishes automated Windows CI smoke checks from remaining nat
 
 29. Workspace schema migration: open a legacy workspace with no schemaVersion or experiment strategyKind and verify its saved experiments are interpreted as SMA without modifying the source file during load. Saving afterward must write version 1 metadata. Mutate a copy with schemaVersion=2: loading must fail and leave bytes untouched; normal workspace and backups must remain recoverable.
 
+31. Capital risk cap: on the Strategy tab select SMA or EMA, set maximum capital per entry to 50%, run a strategy that generates at least one buy and compare with 100%. Entry cost including commission must be no more than half of the available account cash and quantity must not increase. Verify optimization, OOS, walk-forward and cost stress retain the cap. Save experiments with 50% and 100%: comparison must reject them as incomparable. Zero or more than 100% must fail. Historic experiment records lacking the cap must be treated as 100%.
+
 30. Configurable transaction costs: set different commission and slippage (e.g. 25 and 75 bps), run SMA and EMA backtests, optimize and perform both OOS tests. Verify the resulting costs and saved experiments match the input, persist after restart, and cross-experiment comparisons reject different fee/slippage assumptions. Invalid negative or greater-than-1000 bps inputs must not execute. The six-case sensitivity grid remains independent of these inputs.
 
 Never use a live brokerage account, production secrets or real money for acceptance.

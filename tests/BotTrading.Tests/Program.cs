@@ -995,6 +995,23 @@ Check("invalid allocation limits fail before backtesting", () => {
     Throws<ArgumentOutOfRangeException>(() => new Backtester().Run(input, new("AA", 3, 8, MaxAllocationPct: 0m)));
     Throws<ArgumentOutOfRangeException>(() => new Backtester().Run(input, new("AA", 3, 8, StrategyKind: "EMA", MaxAllocationPct: 101m)));
 });
+
+Check("legacy archived experiments without allocation field default to 100 percent", () => {
+    var root = Path.Combine(Path.GetTempPath(), "bt-legacy-allocation-" + Guid.NewGuid().ToString("N"));
+    try {
+        var input = Series("AA", Enumerable.Repeat(100m, 60).ToArray());
+        var store = new WorkspaceStore(root);
+        var saved = ExperimentArchive.Capture(input, new Backtester().Run(input, new("AA", 3, 8)));
+        store.Save(new([input], new(10_000m, [], []), null, null, [saved]));
+        var path = Path.Combine(root, "workspace.v1.json");
+        var json = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(path))!;
+        json["experiments"]![0]!.AsObject().Remove("maxAllocationPct");
+        File.WriteAllText(path, json.ToJsonString());
+        var loaded = store.Load();
+        True(loaded.Experiments!.Single().MaxAllocationPct == 100m);
+    }
+    finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
+});
 Check("DCA monthly contributions use first available monthly open", () => {
     var candles = new[] {
         new Candle(new DateOnly(2020, 1, 3), 10, 11, 9, 10, 100),

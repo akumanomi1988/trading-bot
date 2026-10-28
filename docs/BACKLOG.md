@@ -51,7 +51,8 @@
 - [ ] Perform reproducible 25 symbols × 100k candles memory, CPU and render profiling, with downsampling if required.
 
 ### Priority 1 — originally planned product scope
-- [ ] Risk constraints and portfolio-level multi-run analysis.
+- [ ] Additional portfolio-level risk controls and multi-asset portfolio backtesting.
+- [x] Configurable 1–100% capital-allocation limit per SMA/EMA entry, enforced on the next-open execution budget and threaded through optimizer, chronological validation, cost sensitivity and saved-experiment comparison. Pending fresh CI.
 - [x] Configurable 0–1000 bps fees and slippage in strategy UI, optimization, chronological validation and experiment archives; exact cost hypotheses recorded and used for like-for-like comparison. Pending latest CI.
 - [x] Comparable saved-experiment research: compare two SMA/EMA experiments only when source fingerprint, sample period, capital and transaction costs coincide; return, benchmark, drawdown and trade-count deltas in native/React UI with explicit restrictions. Fresh CI and manual acceptance pending.
 - [x] EMA crossover integrated as a second signal family alongside SMA in backtesting, parameter optimization, out-of-sample and expanding walk-forward validation, cost stress, native bridge, frontend and persistent experiment snapshots. Pending fresh CI and native UI acceptance.

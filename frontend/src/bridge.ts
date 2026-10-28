@@ -19,7 +19,7 @@ export type BacktestResult = {
   finalEquity: number; returnPct: number; maxDrawdownPct: number; roundTrips: number;
   winRatePct: number; fills: Fill[]; equity: { date: string; equity: number }[];
   benchmarkReturnPct: number; excessReturnPct: number; risk: RiskMetrics | null;
-  feeBps: number; slippageBps: number;
+  feeBps: number; slippageBps: number; maxAllocationPct: number;
 };
 export type PaperPosition = { symbol: string; quantity: number; averagePrice: number; markPrice: number; marketValue: number; unrealizedPnL: number };
 export type PaperSnapshot = {
@@ -39,6 +39,7 @@ export type WalkForwardReport = {
 };
 export type CostSensitivityReport = {
   symbol: string; fastPeriod: number; slowPeriod: number; initialCapital: number; strategyKind: StrategyKind;
+  maxAllocationPct: number;
   bestReturnPct: number; worstReturnPct: number; returnRangePctPoints: number;
   scenarios: { feeBps: number; slippageBps: number; returnPct: number; benchmarkReturnPct: number;
     excessReturnPct: number; maxDrawdownPct: number; roundTrips: number; finalEquity: number }[];
@@ -50,7 +51,8 @@ export type ExperimentComparison = {
 };
 export type ExperimentView = { datasetMatchesCurrent: boolean;
   experiment: { version: number; id: string; createdAt: string; symbol: string;
-    fastPeriod: number; slowPeriod: number; strategyKind?: StrategyKind; initialCapital: number; feeBps: number; slippageBps: number;
+    fastPeriod: number; slowPeriod: number; strategyKind?: StrategyKind; initialCapital: number;
+    feeBps: number; slippageBps: number; maxAllocationPct?: number;
     datasetSha256: string; candleCount: number; firstDate: string; lastDate: string;
     returnPct: number; benchmarkReturnPct: number; maxDrawdownPct: number; roundTrips: number } };
 export type ReplayOrder = { sequence: number; requestedAt: string; side: 'BUY' | 'SELL'; quantity: number;
