@@ -244,6 +244,11 @@ public sealed class WorkstationForm : Form
             "workspace.exportBackup" => await ExportBackupWithDialogAsync(),
             "workspace.restoreBackup" => await RestoreBackupWithDialogAsync(),
             "assets.series" => _app.GetSeries(Str("symbol")),
+            "assets.metadata" => await _app.UpdateMarketMetadataAsync(Str("symbol"), Str("adjustmentStatus"),
+                args.TryGetProperty("currencyCode", out var currency) && currency.ValueKind == JsonValueKind.String
+                    ? currency.GetString() : null,
+                args.TryGetProperty("venue", out var venue) && venue.ValueKind == JsonValueKind.String
+                    ? venue.GetString() : null),
             "assets.quality" => await Task.Run(() => _app.AnalyzeQuality(Str("symbol"),
                 args.TryGetProperty("endDate", out var qualityDate) && qualityDate.ValueKind == JsonValueKind.String ?
                     DateOnly.Parse(qualityDate.GetString()!) : null)),
@@ -258,6 +263,10 @@ public sealed class WorkstationForm : Form
                     DateOnly.Parse(endDate.GetString()!) : null,
                 args.TryGetProperty("targetSymbol", out var target) && target.ValueKind == JsonValueKind.String ?
                     target.GetString() : null)),
+            "backtest.portfolio" => await Task.Run(() => _app.BacktestPortfolio(
+                args.GetProperty("symbols").EnumerateArray().Select(x => x.GetString() ?? "").ToArray(),
+                Int("fastPeriod"), Int("slowPeriod"), strategyKind: StrategyKind(),
+                feeBps: Cost("feeBps"), slippageBps: Cost("slippageBps"), maxAllocationPct: AllocationPct())),
             "backtest.run" => _app.Backtest(Str("symbol"), Int("fastPeriod"), Int("slowPeriod"), strategyKind: StrategyKind(),
                 feeBps: Cost("feeBps"), slippageBps: Cost("slippageBps"), maxAllocationPct: AllocationPct()),
             "backtest.optimize" => await Task.Run(() => _app.Optimize(Str("symbol"), StrategyKind(), Cost("feeBps"), Cost("slippageBps"), AllocationPct())),

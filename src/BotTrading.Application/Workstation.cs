@@ -138,6 +138,51 @@ public sealed class Workstation : IDisposable
         finally { _writeLock.Release(); }
     }
 
+    /// <summary>
+    /// Records user-verified instrument metadata only; never rewrites or adjusts historical candles.
+    /// A declaration of ADJUSTED is the user's responsibility, not a calculation by this application.
+    /// </summary>
+    public async Task<SeriesSummary> UpdateMarketMetadataAsync(string symbol, string adjustmentStatus,
+        string? currencyCode, string? venue)
+    {
+        var nextSource = GetSeries(symbol).Provenance.Source;
+        var provenance = new PriceProvenance(nextSource, adjustmentStatus,
+            string.IsNullOrWhiteSpace(currencyCode) ? null : currencyCode.Trim(),
+            string.IsNullOrWhiteSpace(venue) ? null : venue.Trim());
+        provenance.Validate();
+        await _writeLock.WaitAsync();
+        try
+        {
+            lock (_marketSync)
+            {
+                int index = _markets.FindIndex(x => x.Symbol == symbol.Trim().ToUpperInvariant());
+                if (index < 0) throw new KeyNotFoundException("Instrument not loaded.");
+                var original = _markets[index];
+                var replacement = new MarketSeries(original.Symbol, original.Name, original.Candles, provenance);
+                var next = _markets.ToArray();
+                next[index] = replacement;
+                _store.Save(new(next, _paper.State, _replay, _news, _experiments));
+                _markets[index] = replacement;
+                return replacement.ToSummary();
+            }
+        }
+        finally { _writeLock.Release(); }
+    }
+
+    public PortfolioBacktestResult BacktestPortfolio(IReadOnlyList<string> symbols, int fast, int slow,
+        string strategyKind = "SMA", decimal feeBps = 5m, decimal slippageBps = 5m,
+        decimal maxAllocationPct = 100m)
+    {
+        if (symbols is null || symbols.Count < 2 || symbols.Count > 10)
+            throw new ArgumentException("A portfolio requires between two and ten instruments.");
+        MarketSeries[] snapshot;
+        lock (_marketSync)
+            snapshot = symbols.Select(symbol => _markets.FirstOrDefault(x => x.Symbol == symbol.Trim().ToUpperInvariant())
+                ?? throw new KeyNotFoundException($"Instrument '{symbol}' is not loaded.")).ToArray();
+        return new PortfolioBacktester().Run(snapshot, fast, slow, strategyKind: strategyKind,
+            feeBps: feeBps, slippageBps: slippageBps, maxAllocationPct: maxAllocationPct);
+    }
+
     public IReadOnlyList<SeriesSummary> ListSeries()
     {
         lock (_marketSync) return _markets.Select(x => x.ToSummary()).OrderBy(x => x.Symbol).ToArray();

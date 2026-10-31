@@ -1054,6 +1054,65 @@ Check("DCA refuses to fabricate earlier market history", () => {
     var result = new DcaSimulator().Run(input, 100m, new DateOnly(2020, 2, 1));
     True(result.MonthCount == 1 && result.Points[0].ExecutionDate == input.Candles[0].Date);
 });
+Check("metadata declaration updates provenance atomically without altering candles", () => {
+    var dir = Path.Combine(Path.GetTempPath(), "bt-metadata-" + Guid.NewGuid().ToString("N"));
+    try {
+        var store = new WorkspaceStore(dir);
+        var original = Series("AAA", Enumerable.Repeat(50m, 45).ToArray());
+        store.Save(new([original], new(10_000m, [], [])));
+        using (var station = new Workstation(store)) {
+            var updated = station.UpdateMarketMetadataAsync("AAA", "ADJUSTED", "EUR", "XMAD").GetAwaiter().GetResult();
+            True(updated.Provenance?.CurrencyCode == "EUR" && updated.Provenance.AdjustmentStatus == "ADJUSTED");
+            True(station.GetSeries("AAA").Candles.SequenceEqual(original.Candles));
+            Throws<ArgumentException>(() => station.UpdateMarketMetadataAsync("AAA", "ADJUSTED", "euro", "XMAD").GetAwaiter().GetResult());
+        }
+        var saved = store.Load();
+        True(saved.Series.Single().Provenance.CurrencyCode == "EUR");
+        True(saved.Series.Single().Provenance.Venue == "XMAD");
+        True(saved.Series.Single().Candles.SequenceEqual(original.Candles));
+    }
+    finally { if (Directory.Exists(dir)) Directory.Delete(dir, true); }
+});
+Check("portfolio refuses unverified adjustments, missing FX and duplicated tickers", () => {
+    var a = Series("AAA", Enumerable.Repeat(100m, 60).ToArray());
+    var b = Series("BBB", Enumerable.Repeat(150m, 60).ToArray());
+    var engine = new PortfolioBacktester();
+    Throws<InvalidOperationException>(() => engine.Run([a, b], 3, 8));
+    var eurA = new MarketSeries("AAA", "A", a.Candles, new("USER_CSV", "ADJUSTED", "EUR"));
+    var usdB = new MarketSeries("BBB", "B", b.Candles, new("USER_CSV", "ADJUSTED", "USD"));
+    Throws<InvalidOperationException>(() => engine.Run([eurA, usdB], 3, 8));
+    Throws<ArgumentException>(() => engine.Run([eurA, eurA], 3, 8));
+    Throws<InvalidOperationException>(() => engine.Run([eurA, b], 3, 8));
+});
+Check("portfolio has balanced cash, common interval and zero-trade risk", () => {
+    var origin = new DateOnly(2025, 1, 1);
+    MarketSeries Make(string symbol, int offset, int length) =>
+        new MarketSeries(symbol, symbol, Enumerable.Range(offset, length)
+            .Select(i => new Candle(origin.AddDays(i), 100, 101, 99, 100, 100)).ToArray(),
+            new("USER_CSV", "ADJUSTED", "EUR"));
+    var result = new PortfolioBacktester().Run([Make("AAA", 0, 80), Make("BBB", 10, 60)], 3, 8,
+        initialCapital: 10001m, feeBps: 0, slippageBps: 0);
+    True(result.Start == origin.AddDays(10) && result.End == origin.AddDays(69));
+    Nearly(result.InitialCapital, 10001m);
+    Nearly(result.FinalEquity, 10001m);
+    True(result.Legs.Count == 2 && result.Equity.All(x => x.Equity == 10001m));
+    True(result.Risk.ExposurePct == 0m && result.Risk.SharpeRatio is null);
+});
+Check("portfolio excludes later future data beyond shortest history", () => {
+    var origin = new DateOnly(2025, 1, 1);
+    MarketSeries Make(string sym, decimal[] closes) =>
+        new MarketSeries(sym, sym, closes.Select((v, i) =>
+            new Candle(origin.AddDays(i), v, v + 1m, v - 1m, v, 100m)).ToArray(),
+            new("USER_CSV", "ADJUSTED", "EUR"));
+    var first = Enumerable.Range(0, 65).Select(i => 100m + (i % 17)).ToArray();
+    var second = Enumerable.Range(0, 85).Select(i => 100m + (i % 17)).ToArray();
+    var modified = second.Select((v, i) => i < 65 ? v : 300m + i).ToArray();
+    var engine = new PortfolioBacktester();
+    var one = engine.Run([Make("AAA", first), Make("BBB", second)], 3, 8);
+    var two = engine.Run([Make("AAA", first), Make("BBB", modified)], 3, 8);
+    True(one == two || (one.FinalEquity == two.FinalEquity && one.ReturnPct == two.ReturnPct &&
+        one.Equity.SequenceEqual(two.Equity)), "Out-of-period future candles changed the portfolio.");
+});
 Console.WriteLine($"\nTotal: {pass} passed, {fail} failed");
 Environment.ExitCode = fail == 0 ? 0 : 1;
 
