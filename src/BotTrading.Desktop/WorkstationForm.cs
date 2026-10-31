@@ -281,7 +281,9 @@ public sealed class WorkstationForm : Form
                 args.TryGetProperty("endDate", out var qualityDate) && qualityDate.ValueKind == JsonValueKind.String ?
                     DateOnly.Parse(qualityDate.GetString()!) : null)),
             "assets.importCsv" => await ImportWithDialogAsync(Str("symbol")),
-            "assets.download" => await _app.DownloadAsync(Str("symbol")),
+            "assets.download" => await _app.DownloadAsync(Str("symbol"),
+                args.TryGetProperty("apiKey", out var apiKey) && apiKey.ValueKind == JsonValueKind.String
+                    ? apiKey.GetString() : null),
             "news.importCsv" => await ImportNewsWithDialogAsync(),
             "news.list" => _app.NewsSnapshot(Str("symbol"),
                 args.TryGetProperty("endDate", out var newsDate) && newsDate.ValueKind == JsonValueKind.String ?

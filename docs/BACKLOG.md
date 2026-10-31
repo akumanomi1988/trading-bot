@@ -42,7 +42,8 @@
 - [x] Actual external-origin navigation attempt in Windows WebView2 E2E verifies native cancellation and unchanged app origin; PASS in CI #40782127144.
 - [x] End-to-end simulated market fixture (two independent 420-candle symbols), React compare view, UI-selected EMA backtest, UI simulated buy and C# paper-account reconciliation verified in native Windows CI #40781777398; no broker access or production data.
 - [x] Native Windows WebView2 smoke: isolated workspace/profile, actual bundled React DOM, correct virtual origin, bridge bootstrap messages, PNG preview and clean exit verified on CI #40780136513. Expanded smoke includes strategy tab, EMA selection and paper portfolio; CI #40780519212 PASS.
-- [ ] Verify real Stooq fetch against current provider availability and terms; investigate a legally usable free fallback only if the data contract is adequate.
+- [ ] Verify live Stooq fetch and commercial licensing directly with the current provider; automated access appears restricted in 2026. A legally usable free commercial fallback still needs evaluation.
+- [x] Add optional transient (never persisted) Stooq API-key query parameter, strict key validation, HTML-challenge and access-denial errors; deterministic HTTP tests. CI verification pending.
 - [x] Deterministic HTTP contract tests for Stooq origin, redirects, rate limiting, oversized payloads, invalid symbols and malformed bodies; no provider calls in automated tests. Automated Windows CI PASS.
 - [ ] Model market calendars and corporate actions; prevent split-induced false strategy performance and verify adjusted/raw normalization.
 - [x] Persist validated historical source/provenance (user CSV vs Stooq, UNKNOWN adjustment, unknown currency/venue); surface uncertainty in data-quality UI without guessing ticker denomination. Automated CI verified; native manual acceptance still pending.

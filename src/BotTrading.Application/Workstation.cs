@@ -332,9 +332,9 @@ public sealed class Workstation : IDisposable
         return await AddOrReplaceAsync(imported);
     }
 
-    public async Task<SeriesSummary> DownloadAsync(string ticker, CancellationToken ct = default)
+    public async Task<SeriesSummary> DownloadAsync(string ticker, string? apiKey = null, CancellationToken ct = default)
     {
-        var imported = await _feed.DownloadStooqAsync(ticker, ct);
+        var imported = await _feed.DownloadStooqAsync(ticker, ct, apiKey);
         return await AddOrReplaceAsync(imported);
     }
 

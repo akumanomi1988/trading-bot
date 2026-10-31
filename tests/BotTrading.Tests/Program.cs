@@ -1226,6 +1226,26 @@ Check("paper holdings reject replacement with rewritten or unverified histories"
     }
     finally { if (Directory.Exists(dir)) Directory.Delete(dir, true); }
 });
+Check("Stooq API key reaches only allowlisted HTTPS request and is never stored in the series", () => {
+    Uri? actual = null;
+    using var source = new MarketDataClient(new StubMarketHandler(request => {
+        actual = request.RequestUri;
+        return new System.Net.Http.HttpResponseMessage(System.Net.HttpStatusCode.OK) {
+            Content = new StringContent("Date,Open,High,Low,Close,Volume\\n2025-01-03,100,101,99,100,1000\\n")
+        };
+    }));
+    var result = source.DownloadStooqAsync("AA.US", apiKey: "DEMO_KEY_123456").GetAwaiter().GetResult();
+    True(actual is not null && actual.Host == "stooq.com" && actual.Query.Contains("apikey=DEMO_KEY_123456"));
+    True(result.Provenance.Source == "STOOQ" && result.Provenance.CurrencyCode is null);
+    Throws<ArgumentException>(() => source.DownloadStooqAsync("AA.US", apiKey: "unsafe&redirect=x").GetAwaiter().GetResult());
+});
+Check("Stooq HTML challenge produces actionable error without being parsed as market candles", () => {
+    using var source = new MarketDataClient(new StubMarketHandler(_ =>
+        new System.Net.Http.HttpResponseMessage(System.Net.HttpStatusCode.OK) {
+            Content = new StringContent("<html>Access challenge</html>", Encoding.UTF8, "text/html")
+        }));
+    Throws<InvalidDataException>(() => source.DownloadStooqAsync("AA.US").GetAwaiter().GetResult());
+});
 Console.WriteLine($"\nTotal: {pass} passed, {fail} failed");
 Environment.ExitCode = fail == 0 ? 0 : 1;
 
