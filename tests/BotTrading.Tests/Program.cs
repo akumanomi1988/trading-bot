@@ -1172,7 +1172,7 @@ Check("paper account rejects unadjusted, foreign or unaligned holdings", () => {
     var eur = Make("AAA", originalA, "EUR");
     var usd = Make("BBB", originalB, "USD");
     var raw = Make("BBB", originalB, "EUR", "RAW");
-    var lagged = new MarketSeries("BBB", "B", originalB.Candles[..^1], new("USER_CSV", "ADJUSTED", "EUR"));
+    var lagged = new MarketSeries("BBB", "B", originalB.Candles.Take(originalB.Candles.Count - 1).ToArray(), new("USER_CSV", "ADJUSTED", "EUR"));
     var broker = new PaperBroker(new(10_000m, [], []));
     broker.Place(eur, "BUY", 1);
     Throws<InvalidOperationException>(() => broker.Place(usd, "BUY", 1, knownMarkets: [eur, usd]));
