@@ -1209,6 +1209,23 @@ Check("active paper positions prevent currency metadata reassignment", () => {
     }
     finally { if (Directory.Exists(dir)) Directory.Delete(dir, true); }
 });
+Check("paper holdings reject replacement with rewritten or unverified histories", () => {
+    string dir = Path.Combine(Path.GetTempPath(), "bt-paper-history-" + Guid.NewGuid().ToString("N"));
+    try {
+        var original = Series("AAA", Enumerable.Repeat(100m, 40).ToArray());
+        var verified = new MarketSeries("AAA", "A", original.Candles, new("USER_CSV", "ADJUSTED", "EUR"));
+        var store = new WorkspaceStore(dir);
+        store.Save(new([verified], new(10_000m, [], [])));
+        using var station = new Workstation(store);
+        station.PaperOrderAsync("AAA", "BUY", 1).GetAwaiter().GetResult();
+        string filename = Path.Combine(dir, "modified.csv");
+        File.WriteAllText(filename, "date,open,high,low,close,volume\\n2020-01-01,50,51,49,50,100\\n");
+        Throws<InvalidOperationException>(() => station.ImportCsvAsync(filename, "AAA").GetAwaiter().GetResult());
+        True(station.GetSeries("AAA").Candles.SequenceEqual(original.Candles));
+        True(store.Load().Series.Single().Provenance.CurrencyCode == "EUR");
+    }
+    finally { if (Directory.Exists(dir)) Directory.Delete(dir, true); }
+});
 Console.WriteLine($"\nTotal: {pass} passed, {fail} failed");
 Environment.ExitCode = fail == 0 ? 0 : 1;
 

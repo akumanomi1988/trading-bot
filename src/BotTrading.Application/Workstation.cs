@@ -383,6 +383,15 @@ public sealed class Workstation : IDisposable
             {
                 var next = _markets.ToList();
                 int existing = next.FindIndex(x => x.Symbol == market.Symbol);
+                if (existing >= 0 && _paper.State.Positions.Any(p => p.Symbol == market.Symbol))
+                {
+                    var previousMarket = next[existing];
+                    if (previousMarket.Provenance.CurrencyCode != market.Provenance.CurrencyCode ||
+                        previousMarket.Provenance.AdjustmentStatus != market.Provenance.AdjustmentStatus ||
+                        market.Candles.Count < previousMarket.Candles.Count ||
+                        !previousMarket.Candles.SequenceEqual(market.Candles.Take(previousMarket.Candles.Count)))
+                        throw new InvalidOperationException("Cannot rewrite held paper prices or change price metadata. Close the simulated holding first; only matching-history appends are permitted.");
+                }
                 if (existing >= 0) next[existing] = market;
                 else
                 {
