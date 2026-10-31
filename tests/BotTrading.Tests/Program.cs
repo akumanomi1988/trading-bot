@@ -1113,6 +1113,27 @@ Check("portfolio excludes later future data beyond shortest history", () => {
     True(one == two || (one.FinalEquity == two.FinalEquity && one.ReturnPct == two.ReturnPct &&
         one.Equity.SequenceEqual(two.Equity)), "Out-of-period future candles changed the portfolio.");
 });
+Check("streamed workspace storage roundtrips large histories with atomic replacement", () => {
+    string dir = Path.Combine(Path.GetTempPath(), "bt-stream-" + Guid.NewGuid().ToString("N"));
+    try {
+        var store = new WorkspaceStore(dir);
+        var start = new DateOnly(1800, 1, 1);
+        var bars = Enumerable.Range(0, 30_000).Select(i => {
+            decimal close = 100m + i / 100m;
+            return new Candle(start.AddDays(i), close, close + 1m, close - 1m, close, 100m);
+        }).ToArray();
+        var market = new MarketSeries("LONG", "Long series", bars, new("USER_CSV", "ADJUSTED", "EUR"));
+        store.Save(new([market], new(10_000m, [], [])));
+        var before = store.Load();
+        True(before.Series.Single().Candles.Count == 30_000 && before.Series.Single().Provenance.CurrencyCode == "EUR");
+        store.Save(new([market], new(9500m, [], [])));
+        var after = store.Load();
+        Nearly(after.Paper.Cash, 9500m);
+        True(after.Series.Single().Candles[29_999].Close == bars[29_999].Close);
+        True(Directory.GetFiles(dir, "*.tmp").Length == 0, "Temporary files should be removed after successful saves.");
+    }
+    finally { if (Directory.Exists(dir)) Directory.Delete(dir, true); }
+});
 Console.WriteLine($"\nTotal: {pass} passed, {fail} failed");
 Environment.ExitCode = fail == 0 ? 0 : 1;
 

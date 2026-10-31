@@ -51,6 +51,7 @@
 - [x] Workspace schema v1 gate rejects unknown future schemas without rewriting data; legacy v1 experiments with missing strategy kind are normalized to SMA on read and preserved by the next atomic save. Automated CI PASS; native manual QA remains.
 - [x] Native JSON backup/export and validated atomic restore, with pre-restore recovery copy and corruption tests; Windows UI acceptance remains pending.
 - [ ] Perform reproducible 25 symbols × 100k candles memory, CPU and render profiling; optimize WebView2 full-series IPC/retained JS memory before acceptance.
+- [x] Stream workspace JSON deserialize/serialize directly from/to files with flush-before-atomic-replace and 512 MiB postwrite cap, instead of materializing a second entire JSON string; 30k-candle regression roundtrip. CI verification pending.
 - [x] Frontend bounded O(n) extrema-preserving chart rendering (maximum 1,200 SVG vertices), constant-memory shared min/max, original index/date X alignment and deterministic 100k-point fixtures, CI #40781565753 PASS; does not solve full-history IPC memory overhead.
 
 ### Priority 1 — originally planned product scope

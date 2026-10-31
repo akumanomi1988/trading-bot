@@ -100,6 +100,7 @@ public sealed class WorkstationForm : Form
             const string script = "(function() { return location.origin === 'https://bottrading.local' && " +
                 "Boolean(document.querySelector('.data-toolbar')) && " +
                 "Boolean(document.querySelector('.dual-cards')) && " +
+                "Boolean(document.querySelector('section[aria-label^=Metadatos]')) && " +
                 "document.body.textContent.includes('SIM.A') && " +
                 "Boolean(document.querySelector('h1')?.textContent?.includes('Explorador de mercado')) && " +
                 "!document.querySelector('.error-banner'); })()";
@@ -148,6 +149,16 @@ public sealed class WorkstationForm : Form
                 "document.querySelector('.results-panel')?.textContent?.includes('CAPITAL FINAL') && " +
                 "!document.querySelector('.error-banner')",
                 "EMA backtest on synthetic 420-candle history");
+            await core.ExecuteScriptAsync(
+                "document.querySelector('section[aria-label^=Backtesting] button')?.click();");
+            await WaitForScreenAsync(
+                "Boolean(document.querySelector('section[aria-label^=Backtesting] .kpi-grid')) && " +
+                "document.querySelector('section[aria-label^=Backtesting]')?.textContent?.includes('EUR') && " +
+                "!document.querySelector('.error-banner')",
+                "two-asset EUR portfolio historical backtest");
+            var portfolio = _app.BacktestPortfolio(["SIM.A", "SIM.B"], 10, 30, "EMA");
+            if (portfolio.Legs.Count != 2 || portfolio.CurrencyCode != "EUR" || portfolio.Equity.Count < 400)
+                throw new InvalidOperationException("Native portfolio results differ from expected synthetic fixture.");
             await core.ExecuteScriptAsync("document.querySelector('button[title=\\\"Paper Trading\\\"]')?.click();");
             await WaitForScreenAsync(
                 "document.querySelector('h1')?.textContent?.includes('Cartera simulada') && " +

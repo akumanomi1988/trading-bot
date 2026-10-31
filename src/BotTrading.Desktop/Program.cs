@@ -32,7 +32,7 @@ internal static class Program
                     {
                         var price = start + (i % cycle) + (i / cycle % 2 == 0 ? 0m : -15m);
                         return new Candle(date, price, price + 2m, price - 2m, price, 1000m);
-                    }).ToArray());
+                    }).ToArray(), new PriceProvenance("USER_CSV", "ADJUSTED", "EUR", "SIM"));
                 store.Save(new([BuildFixture("SIM.A", 100m, 40), BuildFixture("SIM.B", 80m, 27)],
                     new PaperAccount(10_000m, [], [])));
             }

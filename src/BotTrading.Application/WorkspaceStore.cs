@@ -38,7 +38,10 @@ public sealed class WorkspaceStore
     {
         if (new FileInfo(path).Length > MaxWorkspaceBytes)
             throw new InvalidDataException("The workspace exceeds the 512 MiB import safety limit.");
-        var saved = JsonSerializer.Deserialize<Workspace>(File.ReadAllText(path), _json)
+        // Stream input instead of duplicating the entire JSON in a UTF-16 string.
+        using var input = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read,
+            bufferSize: 256 * 1024, FileOptions.SequentialScan);
+        var saved = JsonSerializer.Deserialize<Workspace>(input, _json)
             ?? throw new InvalidDataException("Workspace JSON is empty.");
         if (saved.SchemaVersion is not (0 or 1))
             throw new InvalidDataException("Unsupported workspace schema version. No data was overwritten.");
@@ -106,7 +109,16 @@ public sealed class WorkspaceStore
         string temp = Path.Combine(dir, $"workspace.{Guid.NewGuid():N}.tmp");
         try
         {
-            File.WriteAllText(temp, JsonSerializer.Serialize(workspace, _json));
+            // Keep serialized workspaces out of the managed large-object heap.
+            // Flush and close the complete temporary file before atomic replacement.
+            using (var output = new FileStream(temp, FileMode.CreateNew, FileAccess.Write, FileShare.None,
+                bufferSize: 256 * 1024, FileOptions.SequentialScan))
+            {
+                JsonSerializer.Serialize(output, workspace, _json);
+                output.Flush(flushToDisk: true);
+            }
+            if (new FileInfo(temp).Length > MaxWorkspaceBytes)
+                throw new InvalidDataException("The serialized workspace exceeds the 512 MiB safety limit.");
             // File.Replace atomically replaces the destination on Windows when it exists.
             if (File.Exists(path)) File.Replace(temp, path, null);
             else File.Move(temp, path);
