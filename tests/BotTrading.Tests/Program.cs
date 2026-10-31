@@ -1134,6 +1134,81 @@ Check("streamed workspace storage roundtrips large histories with atomic replace
     }
     finally { if (Directory.Exists(dir)) Directory.Delete(dir, true); }
 });
+Check("paper account persists two equal-currency adjusted holdings without FX", () => {
+    string dir = Path.Combine(Path.GetTempPath(), "bt-paper-fx-" + Guid.NewGuid().ToString("N"));
+    try {
+        MarketSeries Verified(string symbol) {
+            var original = Series(symbol, Enumerable.Repeat(100m, 50).ToArray());
+            return new MarketSeries(symbol, symbol, original.Candles, new("USER_CSV", "ADJUSTED", "EUR"));
+        }
+        var store = new WorkspaceStore(dir);
+        store.Save(new([Verified("AAA"), Verified("BBB")], new(10_000m, [], [])));
+        using (var station = new Workstation(store)) {
+            station.PaperOrderAsync("AAA", "BUY", 1).GetAwaiter().GetResult();
+            station.PaperOrderAsync("BBB", "BUY", 2).GetAwaiter().GetResult();
+            var view = station.PaperSnapshot();
+            True(view.Positions.Count == 2 && view.CurrencyCode == "EUR" && view.MarksAligned);
+            station.PaperOrderAsync("AAA", "SELL", 1).GetAwaiter().GetResult();
+            station.PaperOrderAsync("BBB", "SELL", 2).GetAwaiter().GetResult();
+            True(station.PaperSnapshot().Positions.Count == 0 && station.PaperSnapshot().CurrencyCode == "EUR");
+        }
+        True(store.Load().Paper.CurrencyCode == "EUR");
+        using (var station = new Workstation(store)) {
+            var usdBase = Series("USD", Enumerable.Repeat(100m, 50).ToArray());
+            var usd = new MarketSeries("USD", "USD", usdBase.Candles, new("USER_CSV", "ADJUSTED", "USD"));
+            // A different denomination still cannot be purchased using leftover EUR cash.
+            store.Save(new([Verified("AAA"), Verified("BBB"), usd], store.Load().Paper));
+        }
+        using (var station = new Workstation(store))
+            Throws<InvalidOperationException>(() => station.PaperOrderAsync("USD", "BUY", 1).GetAwaiter().GetResult());
+    }
+    finally { if (Directory.Exists(dir)) Directory.Delete(dir, true); }
+});
+Check("paper account rejects unadjusted, foreign or unaligned holdings", () => {
+    var originalA = Series("AAA", Enumerable.Repeat(100m, 50).ToArray());
+    var originalB = Series("BBB", Enumerable.Repeat(100m, 50).ToArray());
+    MarketSeries Make(string symbol, MarketSeries source, string currency, string status = "ADJUSTED") =>
+        new MarketSeries(symbol, symbol, source.Candles, new("USER_CSV", status, currency));
+    var eur = Make("AAA", originalA, "EUR");
+    var usd = Make("BBB", originalB, "USD");
+    var raw = Make("BBB", originalB, "EUR", "RAW");
+    var lagged = new MarketSeries("BBB", "B", originalB.Candles[..^1], new("USER_CSV", "ADJUSTED", "EUR"));
+    var broker = new PaperBroker(new(10_000m, [], []));
+    broker.Place(eur, "BUY", 1);
+    Throws<InvalidOperationException>(() => broker.Place(usd, "BUY", 1, knownMarkets: [eur, usd]));
+    Throws<InvalidOperationException>(() => broker.Place(raw, "BUY", 1, knownMarkets: [eur, raw]));
+    Throws<InvalidOperationException>(() => broker.Place(lagged, "BUY", 1, knownMarkets: [eur, lagged]));
+    True(broker.State.Positions.Count == 1 && broker.State.CurrencyCode == "EUR");
+});
+Check("persisted paper account rejects forged mixed-currency holdings", () => {
+    string dir = Path.Combine(Path.GetTempPath(), "bt-paper-mix-" + Guid.NewGuid().ToString("N"));
+    try {
+        var a0 = Series("AAA", Enumerable.Repeat(100m, 40).ToArray());
+        var b0 = Series("BBB", Enumerable.Repeat(100m, 40).ToArray());
+        var a = new MarketSeries("AAA", "A", a0.Candles, new("USER_CSV", "ADJUSTED", "EUR"));
+        var b = new MarketSeries("BBB", "B", b0.Candles, new("USER_CSV", "ADJUSTED", "USD"));
+        var store = new WorkspaceStore(dir);
+        store.Save(new([a, b], new(5000m, [new Position("AAA", 1, 100), new Position("BBB", 1, 100)], [], "EUR")));
+        Throws<InvalidDataException>(() => store.Load());
+        True(File.Exists(Path.Combine(dir, "workspace.v1.json")));
+    }
+    finally { if (Directory.Exists(dir)) Directory.Delete(dir, true); }
+});
+Check("active paper positions prevent currency metadata reassignment", () => {
+    string dir = Path.Combine(Path.GetTempPath(), "bt-paper-metadata-" + Guid.NewGuid().ToString("N"));
+    try {
+        var original = Series("AAA", Enumerable.Repeat(100m, 40).ToArray());
+        var market = new MarketSeries("AAA", "A", original.Candles, new("USER_CSV", "ADJUSTED", "EUR"));
+        var store = new WorkspaceStore(dir);
+        store.Save(new([market], new(10_000m, [], [])));
+        using var station = new Workstation(store);
+        station.PaperOrderAsync("AAA", "BUY", 1).GetAwaiter().GetResult();
+        Throws<InvalidOperationException>(() => station.UpdateMarketMetadataAsync("AAA", "ADJUSTED", "USD", null).GetAwaiter().GetResult());
+        True(store.Load().Series.Single().Provenance.CurrencyCode == "EUR");
+        True(store.Load().Paper.CurrencyCode == "EUR");
+    }
+    finally { if (Directory.Exists(dir)) Directory.Delete(dir, true); }
+});
 Console.WriteLine($"\nTotal: {pass} passed, {fail} failed");
 Environment.ExitCode = fail == 0 ? 0 : 1;
 

@@ -174,6 +174,23 @@ public sealed class WorkstationForm : Form
             var positions = _app.PaperSnapshot().Positions;
             if (positions.Count != 1 || positions[0].Quantity != 1 || positions[0].Symbol != "SIM.A")
                 throw new InvalidOperationException("Native simulated portfolio did not persist the UI buy.");
+            await core.ExecuteScriptAsync(
+                "(function(){const s=Array.from(document.querySelectorAll('label')).find(l=>l.textContent?.includes('INSTRUMENTO'))?.querySelector('select');" +
+                "if(s){s.value='SIM.B';s.dispatchEvent(new Event('change',{bubbles:true}));}})()");
+            await WaitForScreenAsync(
+                "Array.from(document.querySelectorAll('label')).some(l=>l.textContent?.includes('INSTRUMENTO') && l.querySelector('select')?.value==='SIM.B')",
+                "second paper symbol selected");
+            await core.ExecuteScriptAsync(
+                "Array.from(document.querySelectorAll('button')).find(b=>b.textContent?.includes('Comprar (simulado)'))?.click();");
+            await WaitForScreenAsync(
+                "document.querySelector('.positions')?.textContent?.includes('SIM.A') && " +
+                "document.querySelector('.positions')?.textContent?.includes('SIM.B') && " +
+                "!document.querySelector('.error-banner')",
+                "two verified-currency paper holdings");
+            var multiHoldings = _app.PaperSnapshot();
+            if (multiHoldings.Positions.Count != 2 || multiHoldings.CurrencyCode != "EUR" ||
+                multiHoldings.Positions.Any(p => p.Quantity != 1))
+                throw new InvalidOperationException("Native quick-paper ledger failed multi-holding reconciliation.");
             // The navigation is deliberately denied by the native host before a network request.
             // An untrusted page must never become a bridge-capable app origin.
             await core.ExecuteScriptAsync("window.location.assign('https://outside-origin.invalid/');");
