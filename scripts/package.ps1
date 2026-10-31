@@ -2,7 +2,7 @@ param(
     [string]$Version = '0.1.0'
 )
 $ErrorActionPreference = 'Stop'
-if ($Version -notmatch '^[0-9]+\\.[0-9]+\\.[0-9]+$') {
+if ($Version -notmatch '^[0-9]+\.[0-9]+\.[0-9]+$') {
     throw 'Expected semantic version in major.minor.patch format.'
 }
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
