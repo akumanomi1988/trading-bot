@@ -1231,7 +1231,7 @@ Check("Stooq API key reaches only allowlisted HTTPS request and is never stored 
     using var source = new MarketDataClient(new StubMarketHandler(request => {
         actual = request.RequestUri;
         return new System.Net.Http.HttpResponseMessage(System.Net.HttpStatusCode.OK) {
-            Content = new StringContent("Date,Open,High,Low,Close,Volume\\n2025-01-03,100,101,99,100,1000\\n")
+            Content = new StringContent(string.Join(Environment.NewLine, new[] { "Date,Open,High,Low,Close,Volume", "2025-01-03,100,101,99,100,1000", "" }))
         };
     }));
     var result = source.DownloadStooqAsync("AA.US", apiKey: "DEMO_KEY_123456").GetAwaiter().GetResult();
