@@ -72,7 +72,8 @@
 - [x] Historical replay pending-order cancellation and inclusive optional good-through expiry, persistent terminal statuses, native bridge, UI controls and regression tests; Automated CI PASS; native manual QA remains.
 - [ ] News: legal free RSS/API source onboarding with attribution and timestamp integrity, dedupe, historical timestamp alignment and optional strictly offline AI analysis.
 - [ ] Automated browser visual regression and real WebView2 automated screenshots across Windows DPI/screen sizes.
-- [ ] Signed/versioned Windows installer and in-place upgrade/recovery exercises; production operational guide.
+- [ ] Signed Windows installer, trusted signing certificate, automatic in-place upgrade and recovery QA. These are not met by an unsigned portable build.
+- [x] Versioned self-contained win-x64 portable ZIP, build SHA manifest, SHA-256 verification, GitHub artifact upload and extracted-package native WebView2 smoke; manual distribution guide. CI verification pending.
 
 ## Deterministic continuation instructions
 

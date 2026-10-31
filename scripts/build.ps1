@@ -6,6 +6,7 @@ try {
   finally { Pop-Location }
   dotnet run --project tests/BotTrading.Tests/BotTrading.Tests.csproj -c Release
   if ($LASTEXITCODE -ne 0) { throw 'core tests failed' }
-  dotnet publish src/BotTrading.Desktop/BotTrading.Desktop.csproj -c Release -r win-x64 --self-contained false -o artifacts/BotTrading
+  dotnet publish src/BotTrading.Desktop/BotTrading.Desktop.csproj -c Release -r win-x64 --self-contained true -o artifacts/BotTrading
   if ($LASTEXITCODE -ne 0) { throw 'desktop publish failed' }
+  & "$PSScriptRoot/package.ps1" -Version '0.1.0'
 } finally { Pop-Location }

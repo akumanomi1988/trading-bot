@@ -40,7 +40,7 @@ jobs:
       - name: Run core and application tests
         run: dotnet run --project tests/BotTrading.Tests/BotTrading.Tests.csproj -c Release
       - name: Publish native Windows executable
-        run: dotnet publish src/BotTrading.Desktop/BotTrading.Desktop.csproj -c Release -r win-x64 --self-contained false -o artifacts/BotTrading
+        run: dotnet publish src/BotTrading.Desktop/BotTrading.Desktop.csproj -c Release -r win-x64 --self-contained true -o artifacts/BotTrading
       - name: Smoke test native WebView2 host with bundled React
         shell: pwsh
         run: |
@@ -58,8 +58,39 @@ jobs:
           finally {
             if (-not $proc.HasExited) { Stop-Process -Id $proc.Id -Force }
           }
+      - name: Package and smoke-test extracted portable ZIP
+        shell: pwsh
+        run: |
+          ./scripts/package.ps1 -Version '0.1.0'
+          $zip = 'artifacts/packages/BotTrading-0.1.0-win-x64-portable-unsigned.zip'
+          if (-not (Test-Path "$zip.sha256")) { throw 'Package SHA-256 manifest missing' }
+          $expectedHash = ((Get-Content "$zip.sha256" -Raw).Trim() -split '\\s+')[0].ToUpperInvariant()
+          $actualHash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToUpperInvariant()
+          if ($expectedHash -ne $actualHash) { throw 'Portable ZIP SHA-256 mismatch' }
+          Expand-Archive -Path $zip -DestinationPath artifacts/package-smoke -Force
+          $exe = (Resolve-Path 'artifacts/package-smoke/BotTrading.Desktop.exe').Path
+          if (-not (Test-Path 'artifacts/package-smoke/web/index.html')) { throw 'Portable React assets missing' }
+          $metadata = Get-Content 'artifacts/package-smoke/release-manifest.json' -Raw | ConvertFrom-Json
+          if ($metadata.mode -ne 'simulation-only' -or $metadata.sourceCommit -ne $env:GITHUB_SHA) {
+            throw 'Portable release manifest is inconsistent with the build'
+          }
+          $env:BOTTRADING_SMOKE_TEST = '1'
+          $proc = Start-Process -FilePath $exe -PassThru
+          try {
+            Wait-Process -Id $proc.Id -Timeout 90 -ErrorAction Stop
+            $proc.Refresh()
+            if ($proc.ExitCode -ne 0) { throw "Portable WebView2 smoke failed: exit $($proc.ExitCode)" }
+            if (-not (Test-Path 'artifacts/package-smoke/webview2-smoke.png')) {
+              throw 'Portable build did not produce its WebView2 screenshot'
+            }
+          }
+          finally {
+            if (-not $proc.HasExited) { Stop-Process -Id $proc.Id -Force }
+          }
       - uses: actions/upload-artifact@v4
         with:
-          name: BotTrading-win-x64-unsigned
-          path: artifacts/BotTrading
+          name: BotTrading-win-x64-portable-unsigned
+          path: |
+            artifacts/packages/*.zip
+            artifacts/packages/*.sha256
           retention-days: 7
