@@ -1219,7 +1219,7 @@ Check("paper holdings reject replacement with rewritten or unverified histories"
         using var station = new Workstation(store);
         station.PaperOrderAsync("AAA", "BUY", 1).GetAwaiter().GetResult();
         string filename = Path.Combine(dir, "modified.csv");
-        File.WriteAllText(filename, "date,open,high,low,close,volume\\n2020-01-01,50,51,49,50,100\\n");
+        File.WriteAllText(filename, "date,open,high,low,close,volume\n2020-01-01,50,51,49,50,100\n");
         Throws<InvalidOperationException>(() => station.ImportCsvAsync(filename, "AAA").GetAwaiter().GetResult());
         True(station.GetSeries("AAA").Candles.SequenceEqual(original.Candles));
         True(store.Load().Series.Single().Provenance.CurrencyCode == "EUR");
