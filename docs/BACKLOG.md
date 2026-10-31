@@ -55,7 +55,8 @@
 - [x] Frontend bounded O(n) extrema-preserving chart rendering (maximum 1,200 SVG vertices), constant-memory shared min/max, original index/date X alignment and deterministic 100k-point fixtures, CI #40781565753 PASS; does not solve full-history IPC memory overhead.
 
 ### Priority 1 — originally planned product scope
-- [ ] Additional portfolio-level risk controls and multi-asset portfolio backtesting.
+- [ ] Additional portfolio-level risk controls, cross-asset execution and portfolio rebalancing.
+- [x] Quick paper account supports multiple holdings only with user-verified common denomination, adjusted prices and synchronized latest date; account currency remains fixed after liquidation, reset required to switch, legacy unknown accounts remain single-symbol. Workspace rejects mixed-currency holding snapshots. CI verification pending.
 - [x] Configurable 1–100% capital-allocation limit per SMA/EMA entry, enforced on the next-open execution budget and threaded through optimizer, chronological validation, cost sensitivity and saved-experiment comparison. Windows CI verified (latest #40781777398).
 - [x] Configurable 0–1000 bps fees and slippage in strategy UI, optimization, chronological validation and experiment archives; exact cost hypotheses recorded and used for like-for-like comparison. Windows CI verified (latest #40781777398).
 - [x] Comparable saved-experiment research: compare two SMA/EMA experiments only when source fingerprint, sample period, capital and transaction costs coincide; return, benchmark, drawdown and trade-count deltas in native/React UI with explicit restrictions. Fresh CI and manual acceptance pending.

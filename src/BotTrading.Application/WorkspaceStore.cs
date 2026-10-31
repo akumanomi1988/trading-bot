@@ -5,8 +5,10 @@ namespace BotTrading.Application;
 
 public sealed record Position(string Symbol, int Quantity, decimal AveragePrice);
 public sealed record PaperFill(DateTimeOffset Timestamp, string Symbol, string Side, int Quantity, decimal Price, decimal Fee);
-public sealed record PaperAccount(decimal Cash, IReadOnlyList<Position> Positions, IReadOnlyList<PaperFill> Fills);
-public sealed record PaperView(decimal Cash, decimal Equity, decimal UnrealizedPnL, IReadOnlyList<PositionView> Positions, IReadOnlyList<PaperFill> Fills);
+public sealed record PaperAccount(decimal Cash, IReadOnlyList<Position> Positions, IReadOnlyList<PaperFill> Fills,
+    string? CurrencyCode = null);
+public sealed record PaperView(decimal Cash, decimal Equity, decimal UnrealizedPnL, IReadOnlyList<PositionView> Positions,
+    IReadOnlyList<PaperFill> Fills, string? CurrencyCode = null, bool MarksAligned = true);
 public sealed record PositionView(string Symbol, int Quantity, decimal AveragePrice, decimal MarkPrice, decimal MarketValue, decimal UnrealizedPnL);
 
 public sealed class WorkspaceStore
@@ -67,6 +69,16 @@ public sealed class WorkspaceStore
             saved.Paper.Fills.Count > 5000 || saved.Paper.Fills.Any(x => x.Symbol is null || !unique.Contains(x.Symbol) ||
                 x.Side is not ("BUY" or "SELL") || x.Quantity <= 0 || x.Quantity > 1_000_000 || x.Price <= 0 || x.Fee < 0))
             throw new InvalidDataException("Invalid paper account state. No data was overwritten.");
+        if (saved.Paper.CurrencyCode is not null &&
+            !System.Text.RegularExpressions.Regex.IsMatch(saved.Paper.CurrencyCode, "^[A-Z]{3}$",
+                System.Text.RegularExpressions.RegexOptions.CultureInvariant))
+            throw new InvalidDataException("Invalid paper-account currency.");
+        if (saved.Paper.Positions.Any(p => saved.Paper.CurrencyCode is not null &&
+                validated.First(m => m.Symbol == p.Symbol).Provenance.CurrencyCode != saved.Paper.CurrencyCode) ||
+            (saved.Paper.Positions.Count > 1 &&
+                (saved.Paper.CurrencyCode is null || saved.Paper.Positions.Any(p =>
+                    validated.First(m => m.Symbol == p.Symbol).Provenance.AdjustmentStatus != "ADJUSTED"))))
+            throw new InvalidDataException("Paper account has unverified, mixed-currency or unadjusted holdings.");
         var savedNews = saved.News ?? [];
         if (savedNews.Count > NewsResearch.MaxItems || savedNews.Any(x => !NewsResearch.IsValid(x)))
             throw new InvalidDataException("Invalid news research state. No data was overwritten.");
@@ -138,7 +150,8 @@ public sealed class PaperBroker
     public PaperAccount State => _state;
     public void Reset(PaperAccount replacement) => _state = replacement;
 
-    public PaperFill Place(MarketSeries market, string side, int quantity, decimal feeBps = 5m, decimal slippageBps = 5m)
+    public PaperFill Place(MarketSeries market, string side, int quantity, decimal feeBps = 5m, decimal slippageBps = 5m,
+        IReadOnlyCollection<MarketSeries>? knownMarkets = null)
     {
         if (quantity is < 1 or > 1_000_000) throw new ArgumentOutOfRangeException(nameof(quantity));
         if (feeBps < 0 || feeBps > 1000 || slippageBps < 0 || slippageBps > 1000)
@@ -151,10 +164,27 @@ public sealed class PaperBroker
         positions.TryGetValue(market.Symbol, out var old);
         int oldQty = old?.Quantity ?? 0;
         decimal cash = _state.Cash;
+        string? accountCurrency = _state.CurrencyCode;
         if (side == "BUY")
         {
+            // The denomination of an existing cash account never changes merely because
+            // its last position was liquidated. A currency switch requires an explicit reset.
+            if (accountCurrency is not null && accountCurrency != market.Provenance.CurrencyCode)
+                throw new InvalidOperationException("Account currency differs from instrument currency. Reset the simulated account before changing denominations.");
             if (positions.Keys.Any(key => key != market.Symbol))
-                throw new InvalidOperationException("Multi-currency portfolio valuation is not supported: close the existing instrument first.");
+            {
+                if (accountCurrency is null || market.Provenance.AdjustmentStatus != "ADJUSTED" ||
+                    knownMarkets is null)
+                    throw new InvalidOperationException("Multiple paper positions require an established currency and verified adjusted prices.");
+                var catalog = knownMarkets.ToDictionary(x => x.Symbol, StringComparer.Ordinal);
+                if (positions.Keys.Any(key => !catalog.TryGetValue(key, out var existing) ||
+                    existing.Provenance.CurrencyCode != accountCurrency ||
+                    existing.Provenance.AdjustmentStatus != "ADJUSTED" ||
+                    existing.Candles[^1].Date != market.Candles[^1].Date))
+                    throw new InvalidOperationException("All portfolio holdings must have adjusted histories, identical currencies and the same latest market date.");
+            }
+            if (accountCurrency is null && positions.Count == 0 && _state.Fills.Count == 0)
+                accountCurrency = market.Provenance.CurrencyCode;
             decimal cost = quantity * price + fee;
             if (cost > cash) throw new InvalidOperationException("Insufficient simulated cash.");
             cash -= cost;
@@ -169,7 +199,8 @@ public sealed class PaperBroker
             else positions[market.Symbol] = old! with { Quantity = oldQty - quantity };
         }
         var fill = new PaperFill(DateTimeOffset.UtcNow, market.Symbol, side, quantity, price, fee);
-        _state = new(cash, positions.Values.OrderBy(x => x.Symbol).ToArray(), _state.Fills.Append(fill).TakeLast(5000).ToArray());
+        _state = new(cash, positions.Values.OrderBy(x => x.Symbol).ToArray(),
+            _state.Fills.Append(fill).TakeLast(5000).ToArray(), accountCurrency);
         return fill;
     }
 
@@ -185,6 +216,9 @@ public sealed class PaperBroker
             return new PositionView(p.Symbol, p.Quantity, p.AveragePrice, mark,
                 mark * p.Quantity, (mark - p.AveragePrice) * p.Quantity);
         }).ToArray();
-        return new(account.Cash, account.Cash + positions.Sum(x => x.MarketValue), positions.Sum(x => x.UnrealizedPnL), positions, account.Fills);
+        var latestDates = markets.Where(x => account.Positions.Any(p => p.Symbol == x.Symbol))
+            .Select(x => x.Candles[^1].Date).Distinct().Count();
+        return new(account.Cash, account.Cash + positions.Sum(x => x.MarketValue),
+            positions.Sum(x => x.UnrealizedPnL), positions, account.Fills, account.CurrencyCode, latestDates <= 1);
     }
 }

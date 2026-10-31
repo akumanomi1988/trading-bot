@@ -158,6 +158,12 @@ public sealed class Workstation : IDisposable
                 int index = _markets.FindIndex(x => x.Symbol == symbol.Trim().ToUpperInvariant());
                 if (index < 0) throw new KeyNotFoundException("Instrument not loaded.");
                 var original = _markets[index];
+                if (_paper.State.CurrencyCode is not null && _paper.State.Positions.Any(p => p.Symbol == original.Symbol) &&
+                    _paper.State.CurrencyCode != provenance.CurrencyCode)
+                    throw new InvalidOperationException("Cannot change the denomination of an active paper holding.");
+                if (_paper.State.Positions.Count > 1 && _paper.State.Positions.Any(p => p.Symbol == original.Symbol) &&
+                    provenance.AdjustmentStatus != "ADJUSTED")
+                    throw new InvalidOperationException("Cannot mark an active multi-asset paper holding as unadjusted.");
                 var replacement = new MarketSeries(original.Symbol, original.Name, original.Candles, provenance);
                 var next = _markets.ToArray();
                 next[index] = replacement;
@@ -340,7 +346,9 @@ public sealed class Workstation : IDisposable
             var previous = _paper.State;
             try
             {
-                var fill = _paper.Place(GetSeries(symbol), side, quantity);
+                MarketSeries[] catalog;
+                lock (_marketSync) catalog = _markets.ToArray();
+                var fill = _paper.Place(GetSeries(symbol), side, quantity, knownMarkets: catalog);
                 Save();
                 return fill;
             }

@@ -30,6 +30,7 @@ export type PortfolioBacktestResult = {
 export type PaperPosition = { symbol: string; quantity: number; averagePrice: number; markPrice: number; marketValue: number; unrealizedPnL: number };
 export type PaperSnapshot = {
   cash: number; equity: number; unrealizedPnL: number; positions: PaperPosition[];
+  currencyCode?: string | null; marksAligned?: boolean;
   fills: { timestamp: string; symbol: string; side: string; quantity: number; price: number; fee: number }[];
 };
 export type ValidationReport = {
