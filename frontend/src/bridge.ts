@@ -21,6 +21,12 @@ export type BacktestResult = {
   benchmarkReturnPct: number; excessReturnPct: number; risk: RiskMetrics | null;
   feeBps: number; slippageBps: number; maxAllocationPct: number;
 };
+export type PortfolioBacktestResult = {
+  currencyCode: string; start: string; end: string; initialCapital: number;
+  finalEquity: number; returnPct: number; benchmarkReturnPct: number;
+  excessReturnPct: number; maxDrawdownPct: number; risk: RiskMetrics;
+  legs: BacktestResult[]; equity: { date: string; equity: number }[];
+};
 export type PaperPosition = { symbol: string; quantity: number; averagePrice: number; markPrice: number; marketValue: number; unrealizedPnL: number };
 export type PaperSnapshot = {
   cash: number; equity: number; unrealizedPnL: number; positions: PaperPosition[];

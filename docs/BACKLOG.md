@@ -46,7 +46,7 @@
 - [x] Deterministic HTTP contract tests for Stooq origin, redirects, rate limiting, oversized payloads, invalid symbols and malformed bodies; no provider calls in automated tests. Automated Windows CI PASS.
 - [ ] Model market calendars and corporate actions; prevent split-induced false strategy performance and verify adjusted/raw normalization.
 - [x] Persist validated historical source/provenance (user CSV vs Stooq, UNKNOWN adjustment, unknown currency/venue); surface uncertainty in data-quality UI without guessing ticker denomination. Automated CI verified; native manual acceptance still pending.
-- [ ] Track instrument currency and trading venue; reject cross-currency aggregates until FX modeling is available.
+- [x] Let users explicitly declare instrument currency, venue and adjusted/raw status without altering candles; persist atomically and reject unknown or mixed currencies in the new two-asset portfolio backtest. No automated currency/venue verification or FX model exists; full currency lifecycle remains open.
 - [ ] Strengthen workspace interruption and fault injection further.
 - [x] Workspace schema v1 gate rejects unknown future schemas without rewriting data; legacy v1 experiments with missing strategy kind are normalized to SMA on read and preserved by the next atomic save. Automated CI PASS; native manual QA remains.
 - [x] Native JSON backup/export and validated atomic restore, with pre-restore recovery copy and corruption tests; Windows UI acceptance remains pending.
@@ -63,7 +63,8 @@
 - [x] Descriptive daily equity risk metrics (annualized volatility, Sharpe, invested-session exposure, worst session) integrated into backtest DTO, Windows UI and deterministic core assertions; Automated CI verified; native manual acceptance still pending.
 - [ ] Statistical robustness beyond 4 folds: perturbation maps, synthetic regimes and outlier handling.
 - [x] Six-level transaction-cost sensitivity comparing historical SMA returns against fee-adjusted passive benchmark, with C#/WebView2/React and regression tests; Automated CI PASS; native manual QA remains.
-- [ ] Portfolio-level multi-asset backtesting.
+- [x] Initial two-asset historical portfolio simulation: separate equal-capital SMA/EMA sleeves, bounded common interval, combined equity, risk and benchmark, matching verified currency and user-attested adjusted histories; regression tests. This is NOT cross-asset rebalancing or a full corporate-action-aware portfolio engine.
+- [ ] Full multi-asset portfolio execution with rebalancing, cross-asset risk budgets, currencies/FX and corporate-action-aware cash/positions.
 - [x] Historical replay trade-ledger reconciliation on persistent load: verify executed OHLC prices, fees, cash, shares and average cost; detect tampered or interrupted snapshots. Automated CI PASS; native manual QA remains.
 - [x] Historical replay pending-order cancellation and inclusive optional good-through expiry, persistent terminal statuses, native bridge, UI controls and regression tests; Automated CI PASS; native manual QA remains.
 - [ ] News: legal free RSS/API source onboarding with attribution and timestamp integrity, dedupe, historical timestamp alignment and optional strictly offline AI analysis.
